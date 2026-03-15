@@ -1,0 +1,68 @@
+{
+  "name": "@agents-uni/core",
+  "version": "0.1.0",
+  "description": "Universal protocol layer for defining agent organizations and social relationships",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "uni": "dist/cli/index.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "README.en.md",
+    "DESIGN.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "uni": "tsx src/cli/index.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "agents",
+    "multi-agent",
+    "organization",
+    "universe",
+    "orchestration",
+    "openclaw",
+    "ai-agents",
+    "agent-framework"
+  ],
+  "author": "agents-uni",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agents-uni/core.git"
+  },
+  "homepage": "https://github.com/agents-uni/core#readme",
+  "bugs": {
+    "url": "https://github.com/agents-uni/core/issues"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.11",
+    "ajv": "^8.17.1",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "hono": "^4.12.7",
+    "inquirer": "^9.3.7",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

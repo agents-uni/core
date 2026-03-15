@@ -1,0 +1,127 @@
+name: "corporation"
+version: "1.0.0"
+description: "现代企业组织 — CEO、VP、总监、工程师的层级协作"
+type: hierarchical
+
+agents:
+  - id: ceo
+    name: CEO
+    role:
+      title: 首席执行官
+      department: 管理层
+      duties:
+        - 制定战略方向
+        - 审批重大决策
+        - 资源分配
+      permissions: [approve, allocate, promote, demote]
+    rank: 100
+
+  - id: vp-engineering
+    name: VP Engineering
+    role:
+      title: 工程副总裁
+      department: 工程部
+      duties:
+        - 技术方案设计
+        - 团队管理
+        - 进度把控
+      permissions: [assign, review, call]
+    rank: 80
+
+  - id: vp-product
+    name: VP Product
+    role:
+      title: 产品副总裁
+      department: 产品部
+      duties:
+        - 产品规划
+        - 需求评审
+        - 优先级排序
+      permissions: [assign, review, call]
+    rank: 80
+
+  - id: tech-lead
+    name: Tech Lead
+    role:
+      title: 技术负责人
+      department: 工程部
+      duties:
+        - 代码审查
+        - 架构设计
+        - 技术攻关
+      permissions: [review, write_code, call]
+    rank: 60
+
+  - id: developer
+    name: Developer
+    role:
+      title: 开发工程师
+      department: 工程部
+      duties:
+        - 编写代码
+        - 编写测试
+        - 修复 Bug
+      permissions: [write_code, submit_work]
+    rank: 40
+
+  - id: qa
+    name: QA Engineer
+    role:
+      title: 测试工程师
+      department: 工程部
+      duties:
+        - 测试用例设计
+        - 质量验收
+      permissions: [test, report_bug, approve]
+    rank: 40
+
+relationships:
+  - { from: ceo, to: vp-engineering, type: superior }
+  - { from: ceo, to: vp-product, type: superior }
+  - { from: vp-engineering, to: tech-lead, type: superior }
+  - { from: vp-engineering, to: qa, type: superior }
+  - { from: tech-lead, to: developer, type: superior }
+  - { from: tech-lead, to: developer, type: mentor }
+  - { from: vp-product, to: vp-engineering, type: peer }
+  - { from: qa, to: developer, type: reviewer }
+
+protocols:
+  - name: feature-development
+    description: "功能开发流程"
+    states:
+      - { name: Planning, label: 规划中, owner: vp-product }
+      - { name: Designing, label: 设计中, owner: tech-lead }
+      - { name: Developing, label: 开发中, owner: developer }
+      - { name: Reviewing, label: 审查中, owner: tech-lead }
+      - { name: Testing, label: 测试中, owner: qa }
+      - { name: Released, label: 已发布, terminal: true }
+    transitions:
+      - { from: Planning, to: Designing, requiredRole: vp-product }
+      - { from: Designing, to: Developing, requiredRole: tech-lead }
+      - { from: Developing, to: Reviewing }
+      - { from: Reviewing, to: Testing, guard: "review.approved" }
+      - { from: Reviewing, to: Developing, guard: "review.rejected", label: 返工 }
+      - { from: Testing, to: Released, guard: "test.passed" }
+      - { from: Testing, to: Developing, guard: "test.failed", label: 修复 }
+    roles:
+      vp-product: [Planning]
+      tech-lead: [Designing, Reviewing]
+      developer: [Developing]
+      qa: [Testing]
+
+governance:
+  decisionModel: autocratic
+  permissionMatrix:
+    - { actor: ceo, target: vp-engineering, actions: [call, assign, review] }
+    - { actor: ceo, target: vp-product, actions: [call, assign, review] }
+    - { actor: vp-engineering, target: tech-lead, actions: [call, assign, review] }
+    - { actor: vp-engineering, target: qa, actions: [call, assign] }
+    - { actor: vp-product, target: vp-engineering, actions: [call] }
+    - { actor: tech-lead, target: developer, actions: [call, assign, review] }
+    - { actor: qa, target: developer, actions: [reject] }
+  reviewPolicy:
+    mandatory: true
+    reviewers: [tech-lead, qa]
+    maxRounds: 3
+  escalationRules:
+    - { trigger: "review.rounds > 3", escalateTo: vp-engineering, action: notify }

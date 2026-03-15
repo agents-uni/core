@@ -1,0 +1,81 @@
+name: "flat-team"
+version: "1.0.0"
+description: "扁平团队 — 所有成员平等协作，适合头脑风暴和创意项目"
+type: flat
+
+agents:
+  - id: facilitator
+    name: 主持人
+    role:
+      title: 协调员
+      duties:
+        - 引导讨论流程
+        - 确保每个人都有发言机会
+        - 汇总共识
+      permissions: [call, summarize]
+    rank: 50
+
+  - id: member-a
+    name: 成员 A
+    role:
+      title: 团队成员
+      duties: [提出想法, 讨论评审, 执行任务]
+      permissions: [call, submit_work, review]
+    rank: 50
+
+  - id: member-b
+    name: 成员 B
+    role:
+      title: 团队成员
+      duties: [提出想法, 讨论评审, 执行任务]
+      permissions: [call, submit_work, review]
+    rank: 50
+
+  - id: member-c
+    name: 成员 C
+    role:
+      title: 团队成员
+      duties: [提出想法, 讨论评审, 执行任务]
+      permissions: [call, submit_work, review]
+    rank: 50
+
+relationships:
+  - { from: facilitator, to: member-a, type: peer }
+  - { from: facilitator, to: member-b, type: peer }
+  - { from: facilitator, to: member-c, type: peer }
+  - { from: member-a, to: member-b, type: peer }
+  - { from: member-a, to: member-c, type: peer }
+  - { from: member-b, to: member-c, type: peer }
+
+protocols:
+  - name: brainstorm
+    description: "头脑风暴流程"
+    states:
+      - { name: Proposing, label: 提议, icon: "💡" }
+      - { name: Discussing, label: 讨论, icon: "💬" }
+      - { name: Voting, label: 投票, icon: "🗳️" }
+      - { name: Executing, label: 执行, icon: "⚡" }
+      - { name: Done, label: 完成, terminal: true, icon: "✅" }
+    transitions:
+      - { from: Proposing, to: Discussing }
+      - { from: Discussing, to: Voting }
+      - { from: Voting, to: Executing, guard: "vote.passed" }
+      - { from: Voting, to: Proposing, guard: "vote.failed" }
+      - { from: Executing, to: Done }
+    roles:
+      facilitator: [Proposing, Discussing, Voting]
+
+governance:
+  decisionModel: democratic
+  permissionMatrix:
+    - { actor: facilitator, target: member-a, actions: [call] }
+    - { actor: facilitator, target: member-b, actions: [call] }
+    - { actor: facilitator, target: member-c, actions: [call] }
+    - { actor: member-a, target: member-b, actions: [call, review] }
+    - { actor: member-a, target: member-c, actions: [call, review] }
+    - { actor: member-b, target: member-c, actions: [call, review] }
+  reviewPolicy:
+    mandatory: false
+    reviewers: []
+    maxRounds: 1
+  escalationRules: []

@@ -1,0 +1,173 @@
+name: "government-sansheng"
+version: "1.0.0"
+description: "三省六部制 — 基于唐朝官僚体系的 Agent 协作组织，强调分权制衡与制度性审核"
+type: hierarchical
+
+agents:
+  - id: taizi
+    name: 太子
+    role:
+      title: 分拣官
+      department: 太子东宫
+      duties:
+        - 接收所有用户消息
+        - 判断消息类型（闲聊 vs 正式旨意）
+        - 简单消息直接回复
+        - 旨意/复杂任务整理后转交中书省
+      permissions: [receive_directive, create_task, call_zhongshu]
+      soulTemplate: sorter
+    rank: 90
+
+  - id: zhongshu
+    name: 中书省
+    role:
+      title: 中书令
+      department: 中书省
+      duties:
+        - 接收旨意，起草执行方案
+        - 拆解子任务，分配到各部
+        - 提交门下省审议
+      permissions: [draft_plan, call_menxia, call_shangshu]
+      soulTemplate: planner
+    rank: 80
+
+  - id: menxia
+    name: 门下省
+    role:
+      title: 侍中
+      department: 门下省
+      duties:
+        - 审查中书省方案的可行性和完整性
+        - 准奏通过或封驳退回
+        - 确保方案质量达标
+      permissions: [review, approve, reject]
+      soulTemplate: reviewer
+    rank: 80
+
+  - id: shangshu
+    name: 尚书省
+    role:
+      title: 尚书令
+      department: 尚书省
+      duties:
+        - 接收审议通过的方案
+        - 派发任务到六部执行
+        - 汇总执行结果
+      permissions: [dispatch, assign, collect_results]
+      soulTemplate: dispatcher
+    rank: 75
+
+  - id: hubu
+    name: 户部
+    role:
+      title: 户部尚书
+      department: 六部
+      duties:
+        - 数据分析和统计
+        - 预算编制和资源核算
+      permissions: [analyze_data, generate_report]
+    rank: 60
+
+  - id: bingbu
+    name: 兵部
+    role:
+      title: 兵部尚书
+      department: 六部
+      duties:
+        - 代码编写和工程实现
+        - 技术方案设计
+      permissions: [write_code, review_code]
+    rank: 60
+
+  - id: xingbu
+    name: 刑部
+    role:
+      title: 刑部尚书
+      department: 六部
+      duties:
+        - 安全审计和合规检查
+        - 质量把关
+      permissions: [security_audit, compliance_check]
+    rank: 60
+
+  - id: gongbu
+    name: 工部
+    role:
+      title: 工部尚书
+      department: 六部
+      duties:
+        - 基础设施管理
+        - CI/CD 部署
+      permissions: [manage_infra, deploy]
+    rank: 60
+
+  - id: libu
+    name: 礼部
+    role:
+      title: 礼部尚书
+      department: 六部
+      duties:
+        - 文档编写和格式化
+        - 对外沟通材料
+      permissions: [write_docs, format_output]
+    rank: 60
+
+relationships:
+  - { from: taizi, to: zhongshu, type: superior }
+  - { from: zhongshu, to: menxia, type: peer, metadata: { interaction: review } }
+  - { from: menxia, to: shangshu, type: peer, metadata: { interaction: dispatch } }
+  - { from: shangshu, to: hubu, type: superior }
+  - { from: shangshu, to: bingbu, type: superior }
+  - { from: shangshu, to: xingbu, type: superior }
+  - { from: shangshu, to: gongbu, type: superior }
+  - { from: shangshu, to: libu, type: superior }
+  - { from: zhongshu, to: menxia, type: reviewer }
+
+protocols:
+  - name: directive-workflow
+    description: "标准旨意处理流程"
+    states:
+      - { name: Inbox, label: 收旨, icon: "👑" }
+      - { name: Taizi, label: 分拣, owner: taizi, icon: "🤴" }
+      - { name: Zhongshu, label: 起草, owner: zhongshu, icon: "📜" }
+      - { name: Menxia, label: 审议, owner: menxia, icon: "🔍" }
+      - { name: Assigned, label: 派发, owner: shangshu, icon: "📮" }
+      - { name: Doing, label: 执行, icon: "⚙️" }
+      - { name: Review, label: 汇总, owner: shangshu, icon: "🔎" }
+      - { name: Done, label: 完成, terminal: true, icon: "✅" }
+      - { name: Cancelled, label: 取消, terminal: true, icon: "❌" }
+    transitions:
+      - { from: Inbox, to: Taizi }
+      - { from: Taizi, to: Zhongshu, requiredRole: taizi }
+      - { from: Zhongshu, to: Menxia, requiredRole: zhongshu }
+      - { from: Menxia, to: Assigned, guard: "review.approved", requiredRole: menxia }
+      - { from: Menxia, to: Zhongshu, guard: "review.rejected", requiredRole: menxia, label: 封驳 }
+      - { from: Assigned, to: Doing, requiredRole: shangshu }
+      - { from: Doing, to: Review }
+      - { from: Review, to: Done, requiredRole: shangshu }
+      - { from: Review, to: Doing, label: 返工 }
+    roles:
+      taizi: [Inbox, Taizi]
+      zhongshu: [Zhongshu]
+      menxia: [Menxia]
+      shangshu: [Assigned, Review]
+
+governance:
+  decisionModel: autocratic
+  permissionMatrix:
+    - { actor: taizi, target: zhongshu, actions: [call] }
+    - { actor: zhongshu, target: menxia, actions: [call, review] }
+    - { actor: menxia, target: zhongshu, actions: [call, reject] }
+    - { actor: menxia, target: shangshu, actions: [call, approve] }
+    - { actor: shangshu, target: hubu, actions: [call, assign] }
+    - { actor: shangshu, target: bingbu, actions: [call, assign] }
+    - { actor: shangshu, target: xingbu, actions: [call, assign] }
+    - { actor: shangshu, target: gongbu, actions: [call, assign] }
+    - { actor: shangshu, target: libu, actions: [call, assign] }
+  reviewPolicy:
+    mandatory: true
+    reviewers: [menxia]
+    maxRounds: 3
+    autoApproveAfter: 3
+  escalationRules:
+    - { trigger: "state.timeout", escalateTo: taizi, action: notify, timeoutMs: 3600000 }

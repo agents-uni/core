@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agents-uni-core/universe.schema.json",
+  "title": "Universe Specification",
+  "description": "Schema for defining agent organization universes",
+  "type": "object",
+  "required": ["name", "version", "description", "type", "agents", "relationships", "protocols", "governance"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Universe name (kebab-case)"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "description": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["hierarchical", "flat", "competitive", "hybrid"]
+    },
+    "agents": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/agent" }
+    },
+    "relationships": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/relationship" }
+    },
+    "protocols": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/protocol" }
+    },
+    "governance": { "$ref": "#/$defs/governance" },
+    "resources": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/resource" }
+    },
+    "evolution": { "$ref": "#/$defs/evolution" },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "agent": {
+      "type": "object",
+      "required": ["id", "name", "role"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9_-]+$" },
+        "name": { "type": "string" },
+        "role": {
+          "type": "object",
+          "required": ["title", "duties", "permissions"],
+          "properties": {
+            "title": { "type": "string" },
+            "department": { "type": "string" },
+            "duties": { "type": "array", "items": { "type": "string" } },
+            "permissions": { "type": "array", "items": { "type": "string" } },
+            "soulTemplate": { "type": "string" }
+          }
+        },
+        "rank": { "type": "number", "minimum": 0, "maximum": 100 },
+        "traits": {
+          "type": "object",
+          "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "capabilities": { "type": "array", "items": { "type": "string" } },
+        "constraints": { "type": "array", "items": { "type": "string" } },
+        "metadata": { "type": "object" }
+      }
+    },
+    "relationship": {
+      "type": "object",
+      "required": ["from", "to", "type"],
+      "properties": {
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["superior", "subordinate", "peer", "competitive", "reviewer", "advisor", "ally", "rival", "mentor", "delegate"]
+        },
+        "weight": { "type": "number", "minimum": 0, "maximum": 1 },
+        "mutable": { "type": "boolean" },
+        "metadata": { "type": "object" }
+      }
+    },
+    "protocol": {
+      "type": "object",
+      "required": ["name", "description", "states", "transitions"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "states": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name", "label"],
+            "properties": {
+              "name": { "type": "string" },
+              "label": { "type": "string" },
+              "owner": { "type": "string" },
+              "terminal": { "type": "boolean" },
+              "timeout": { "type": "number" },
+              "icon": { "type": "string" }
+            }
+          }
+        },
+        "transitions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["from", "to"],
+            "properties": {
+              "from": { "type": "string" },
+              "to": { "type": "string" },
+              "guard": { "type": "string" },
+              "action": { "type": "string" },
+              "requiredRole": { "type": "string" },
+              "label": { "type": "string" }
+            }
+          }
+        },
+        "roles": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "required": ["decisionModel", "permissionMatrix", "reviewPolicy"],
+      "properties": {
+        "decisionModel": {
+          "type": "string",
+          "enum": ["autocratic", "democratic", "consensus", "meritocratic"]
+        },
+        "permissionMatrix": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["actor", "target", "actions"],
+            "properties": {
+              "actor": { "type": "string" },
+              "target": { "type": "string" },
+              "actions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": ["call", "assign", "review", "approve", "reject", "promote", "demote", "suspend", "eliminate", "allocate"]
+                }
+              }
+            }
+          }
+        },
+        "reviewPolicy": {
+          "type": "object",
+          "required": ["mandatory", "reviewers", "maxRounds"],
+          "properties": {
+            "mandatory": { "type": "boolean" },
+            "reviewers": { "type": "array", "items": { "type": "string" } },
+            "maxRounds": { "type": "number", "minimum": 1 },
+            "autoApproveAfter": { "type": "number" }
+          }
+        },
+        "escalationRules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["trigger", "escalateTo", "action"],
+            "properties": {
+              "trigger": { "type": "string" },
+              "escalateTo": { "type": "string" },
+              "action": { "type": "string", "enum": ["notify", "reassign", "override", "cancel"] },
+              "timeoutMs": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "resource": {
+      "type": "object",
+      "required": ["name", "type", "total", "distribution"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["finite", "renewable", "positional"] },
+        "total": { "type": "number", "minimum": 0 },
+        "distribution": { "type": "string", "enum": ["equal", "merit", "hierarchy", "competitive"] },
+        "refreshInterval": { "type": "number" },
+        "decayRate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "description": { "type": "string" }
+      }
+    },
+    "evolution": {
+      "type": "object",
+      "required": ["performanceWindow", "promotionThreshold", "demotionThreshold", "memoryRetention"],
+      "properties": {
+        "performanceWindow": { "type": "number", "minimum": 1 },
+        "promotionThreshold": { "type": "number", "minimum": 0, "maximum": 100 },
+        "demotionThreshold": { "type": "number", "minimum": 0, "maximum": 100 },
+        "memoryRetention": { "type": "number", "minimum": 1 },
+        "evolutionInterval": { "type": "number" }
+      }
+    }
+  }
+}

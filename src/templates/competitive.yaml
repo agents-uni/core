@@ -1,0 +1,122 @@
+name: "competitive-arena"
+version: "1.0.0"
+description: "竞技场模式 — Agent 通过赛马竞争提升质量，适用于需要最优输出的场景"
+type: competitive
+
+agents:
+  - id: judge
+    name: 裁判
+    role:
+      title: 首席裁判
+      duties:
+        - 发布竞赛任务
+        - 盲审评分
+        - 公布结果
+      permissions: [create_task, evaluate, announce]
+    rank: 90
+
+  - id: referee
+    name: 监督
+    role:
+      title: 公正监督
+      duties:
+        - 确保评审公正性
+        - 处理争议
+        - 维护竞赛规则
+      permissions: [audit, override, resolve_dispute]
+    rank: 85
+
+  - id: contestant-alpha
+    name: Alpha 选手
+    role:
+      title: 竞赛选手
+      department: 选手池
+      duties:
+        - 接收竞赛任务
+        - 独立完成任务
+        - 提交作品
+      permissions: [receive_task, submit_work]
+    rank: 50
+    traits: { creativity: 0.8, efficiency: 0.6, accuracy: 0.7 }
+
+  - id: contestant-beta
+    name: Beta 选手
+    role:
+      title: 竞赛选手
+      department: 选手池
+      duties:
+        - 接收竞赛任务
+        - 独立完成任务
+        - 提交作品
+      permissions: [receive_task, submit_work]
+    rank: 50
+    traits: { creativity: 0.6, efficiency: 0.8, accuracy: 0.8 }
+
+  - id: contestant-gamma
+    name: Gamma 选手
+    role:
+      title: 竞赛选手
+      department: 选手池
+      duties:
+        - 接收竞赛任务
+        - 独立完成任务
+        - 提交作品
+      permissions: [receive_task, submit_work]
+    rank: 50
+    traits: { creativity: 0.7, efficiency: 0.7, accuracy: 0.9 }
+
+relationships:
+  - { from: judge, to: contestant-alpha, type: superior }
+  - { from: judge, to: contestant-beta, type: superior }
+  - { from: judge, to: contestant-gamma, type: superior }
+  - { from: referee, to: judge, type: reviewer }
+  - { from: contestant-alpha, to: contestant-beta, type: competitive, mutable: true }
+  - { from: contestant-alpha, to: contestant-gamma, type: competitive, mutable: true }
+  - { from: contestant-beta, to: contestant-gamma, type: competitive, mutable: true }
+
+protocols:
+  - name: horse-race
+    description: "赛马竞赛流程"
+    states:
+      - { name: TaskIssued, label: 出题, owner: judge, icon: "📝" }
+      - { name: Competing, label: 竞赛中, icon: "🏇" }
+      - { name: Judging, label: 评审中, owner: judge, icon: "⚖️" }
+      - { name: Completed, label: 揭晓, terminal: true, icon: "🏆" }
+    transitions:
+      - { from: TaskIssued, to: Competing, requiredRole: judge }
+      - { from: Competing, to: Judging }
+      - { from: Judging, to: Completed, requiredRole: judge }
+    roles:
+      judge: [TaskIssued, Judging]
+
+governance:
+  decisionModel: meritocratic
+  permissionMatrix:
+    - { actor: judge, target: contestant-alpha, actions: [assign, evaluate] }
+    - { actor: judge, target: contestant-beta, actions: [assign, evaluate] }
+    - { actor: judge, target: contestant-gamma, actions: [assign, evaluate] }
+    - { actor: referee, target: judge, actions: [review, approve] }
+  reviewPolicy:
+    mandatory: true
+    reviewers: [referee]
+    maxRounds: 1
+  escalationRules: []
+
+resources:
+  - name: rating
+    type: finite
+    total: 10000
+    distribution: competitive
+    description: "ELO 积分"
+  - name: prize
+    type: renewable
+    total: 100
+    distribution: merit
+    refreshInterval: 86400000
+    description: "每日奖金池"
+
+evolution:
+  performanceWindow: 20
+  promotionThreshold: 75
+  demotionThreshold: 30
+  memoryRetention: 500

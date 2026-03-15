@@ -1,0 +1,95 @@
+name: "military-command"
+version: "1.0.0"
+description: "军事指挥链 — 严格的上下级关系，命令式执行，适合紧急/高可靠任务"
+type: hierarchical
+
+agents:
+  - id: commander
+    name: 指挥官
+    role:
+      title: 总指挥
+      duties:
+        - 制定作战计划
+        - 下达命令
+        - 监控全局
+      permissions: [command, approve, allocate, promote, demote]
+    rank: 100
+
+  - id: officer-a
+    name: 甲队长
+    role:
+      title: 分队长
+      department: 甲队
+      duties:
+        - 执行指挥官命令
+        - 管理分队成员
+        - 汇报执行结果
+      permissions: [assign, report, call]
+    rank: 70
+
+  - id: officer-b
+    name: 乙队长
+    role:
+      title: 分队长
+      department: 乙队
+      duties:
+        - 执行指挥官命令
+        - 管理分队成员
+        - 汇报执行结果
+      permissions: [assign, report, call]
+    rank: 70
+
+  - id: soldier-1
+    name: 士兵一号
+    role:
+      title: 执行员
+      department: 甲队
+      duties: [执行任务, 汇报状态]
+      permissions: [execute, report]
+    rank: 30
+
+  - id: soldier-2
+    name: 士兵二号
+    role:
+      title: 执行员
+      department: 乙队
+      duties: [执行任务, 汇报状态]
+      permissions: [execute, report]
+    rank: 30
+
+relationships:
+  - { from: commander, to: officer-a, type: superior }
+  - { from: commander, to: officer-b, type: superior }
+  - { from: officer-a, to: soldier-1, type: superior }
+  - { from: officer-b, to: soldier-2, type: superior }
+  - { from: officer-a, to: officer-b, type: peer }
+
+protocols:
+  - name: mission
+    description: "任务执行流程"
+    states:
+      - { name: Briefing, label: 下令, owner: commander, icon: "🎯" }
+      - { name: Deploying, label: 部署, icon: "🚀" }
+      - { name: Executing, label: 执行, icon: "⚔️" }
+      - { name: Reporting, label: 汇报, icon: "📋" }
+      - { name: Complete, label: 完成, terminal: true, icon: "🏁" }
+    transitions:
+      - { from: Briefing, to: Deploying, requiredRole: commander }
+      - { from: Deploying, to: Executing }
+      - { from: Executing, to: Reporting }
+      - { from: Reporting, to: Complete, requiredRole: commander }
+      - { from: Reporting, to: Executing, label: 继续执行 }
+
+governance:
+  decisionModel: autocratic
+  permissionMatrix:
+    - { actor: commander, target: officer-a, actions: [call, assign, promote, demote] }
+    - { actor: commander, target: officer-b, actions: [call, assign, promote, demote] }
+    - { actor: officer-a, target: soldier-1, actions: [call, assign] }
+    - { actor: officer-b, target: soldier-2, actions: [call, assign] }
+  reviewPolicy:
+    mandatory: false
+    reviewers: [commander]
+    maxRounds: 1
+  escalationRules:
+    - { trigger: "state.timeout", escalateTo: commander, action: override, timeoutMs: 600000 }
