@@ -52,6 +52,16 @@ npx create-uni my-universe
 npx create-uni my-universe --template competitive
 ```
 
+### Install the CLI globally
+
+```bash
+npm install -g @agents-uni/core
+
+# Then use the `uni` command directly
+uni validate universe.yaml
+uni dashboard
+```
+
 ### Use as a library
 
 ```bash
@@ -218,6 +228,8 @@ npx create-uni my-project --template competitive
 
 ## CLI
 
+After global install, use the `uni` command directly, or call via `npx @agents-uni/core`:
+
 ```bash
 # Validate a universe spec
 uni validate universe.yaml
@@ -269,8 +281,11 @@ uni reset <id>
 agents-uni-core integrates with [OpenClaw](https://github.com/anthropics/openclaw) via a **file-based protocol**. Three core capabilities:
 
 **1. SOUL.md Deployment** — generate agent persona files from universe specs and create agent runtime directories (`agents/{id}/agent/` + `agents/{id}/sessions/`)
+
 **2. One-Click Registration** — auto-register agents in `openclaw.json` (with both `workspace` and `agentDir` fields) during deployment
+
 **3. Task Dispatch** — communicate with agents via `TASK.md` / `SUBMISSION.md` file protocol
+
 **4. Workspace Management** — check and sync OpenClaw workspace state
 
 ```

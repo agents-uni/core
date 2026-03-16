@@ -52,6 +52,16 @@ npx create-uni my-universe
 npx create-uni my-universe --template competitive
 ```
 
+### 全局安装 CLI
+
+```bash
+npm install -g @agents-uni/core
+
+# 之后可以直接使用 uni 命令
+uni validate universe.yaml
+uni dashboard
+```
+
 ### 作为库使用
 
 ```bash
@@ -218,6 +228,8 @@ npx create-uni my-project --template competitive
 
 ## 命令行工具
 
+全局安装后可直接使用 `uni` 命令，也可通过 `npx @agents-uni/core` 调用：
+
 ```bash
 # 验证组织规范
 uni validate universe.yaml
@@ -269,8 +281,11 @@ uni reset <id>
 agents-uni-core 通过**文件协议**与 [OpenClaw](https://github.com/anthropics/openclaw) 无缝集成。包含三个核心能力：
 
 **1. SOUL.md 部署** — 从组织规范生成 Agent 人格文件并部署到 OpenClaw 工作区，同时创建 Agent 运行时目录（`agents/{id}/agent/` + `agents/{id}/sessions/`）
+
 **2. 一键注册** — 部署时自动将 Agent 注册到 `openclaw.json`（含 `workspace` 和 `agentDir` 字段），无需手动配置
+
 **3. 任务调度** — 通过 `TASK.md` / `SUBMISSION.md` 文件协议与 Agent 交互
+
 **4. 工作区管理** — 检查和同步 OpenClaw 工作区状态
 
 ```
