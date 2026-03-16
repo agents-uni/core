@@ -1,3 +1,7 @@
+[![CI](https://github.com/agents-uni/core/actions/workflows/ci.yml/badge.svg)](https://github.com/agents-uni/core/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/@agents-uni/core.svg)](https://www.npmjs.com/package/@agents-uni/core)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 <p align="center">
   <h1 align="center">agents-uni-core</h1>
   <p align="center">
