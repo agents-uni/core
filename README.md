@@ -586,7 +586,7 @@ npm run dev
 
 ## 相关项目
 
-- [**@agents-uni/zhenhuan**](https://github.com/agents-uni/zhenhuan) — 基于 agents-uni-core 的甄嬛后宫 Agent 竞技系统
+- [**@agents-uni/zhenhuan**](https://github.com/agents-uni/zhenhuan) — 基于 agents-uni-core 的甄嬛后宫 Agent 竞技系统 ([npm](https://www.npmjs.com/package/@agents-uni/zhenhuan))
 
 ## License
 

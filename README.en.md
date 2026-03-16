@@ -586,7 +586,7 @@ npm run dev
 
 ## Related Projects
 
-- [**@agents-uni/zhenhuan**](https://github.com/agents-uni/zhenhuan) — Palace drama themed agent competition system built on agents-uni-core
+- [**@agents-uni/zhenhuan**](https://github.com/agents-uni/zhenhuan) — Palace drama themed agent competition system built on agents-uni-core ([npm](https://www.npmjs.com/package/@agents-uni/zhenhuan))
 
 ## License
 
