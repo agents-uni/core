@@ -26,3 +26,31 @@ export {
   type UniRegistryEntry,
   type UniRegistry,
 } from './uni-registry.js';
+
+// Agency-agents bridge
+export {
+  parseAgencyAgentFile,
+  toAgentDefinition,
+  toSoulMd,
+  importAgencyAgents,
+  type AgencyAgentFile,
+  type AgencyAgentFrontmatter,
+  type ImportOptions,
+  type ImportResult,
+} from './agency-import.js';
+
+// Agency-agents registry (repo lifecycle management)
+export {
+  getAgencyDir,
+  isAgencyInstalled,
+  agencyInit,
+  agencyUpdate,
+  agencyListCategories,
+  agencyStatus,
+  resolveAgencyCategories,
+  getAvailableCategories,
+  type AgencyCategory,
+  type AgencyCategoryInfo,
+  type AgencyStatus,
+  type AgencyUpdateResult,
+} from './agency-registry.js';

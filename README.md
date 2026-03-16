@@ -21,6 +21,7 @@
   <a href="#openclaw-桥接">OpenClaw</a> &bull;
   <a href="#dashboard-仪表盘">Dashboard</a> &bull;
   <a href="#多-uni-管理">多 Uni 管理</a> &bull;
+  <a href="#agency-agents-桥接">Agency-Agents</a> &bull;
   <a href="./DESIGN.md">设计文档</a>
 </p>
 
@@ -247,20 +248,30 @@ uni deploy universe.yaml --dir ./workspaces --lang zh
 # 交互式初始化项目
 uni init
 
-# 🆕 启动 Dashboard 仪表盘
+# 启动 Dashboard 仪表盘
 uni dashboard [--port 8089]
 
-# 🆕 列出所有已注册的 Universe
+# 列出所有已注册的 Universe
 uni list
 
-# 🆕 查看已部署的 Uni / Agent 概览
+# 查看已部署的 Uni / Agent 概览
 uni status
 
-# 🆕 清理一个 Universe（删除所有相关文件 + 注册信息）
+# 清理一个 Universe（删除所有相关文件 + 注册信息）
 uni cleanup <id>
 
-# 🆕 重置一个 Universe（清除运行时数据，保留配置）
+# 重置一个 Universe（清除运行时数据，保留配置）
 uni reset <id>
+
+# 🆕 agency-agents 桥接
+uni agency init                           # 下载 agency-agents 仓库
+uni agency list                           # 查看可用分类
+uni agency update                         # 拉取最新
+uni agency import engineering design      # 按分类导入
+uni agency import all --name full-team    # 导入全部
+
+# 从原始目录导入（高级用法）
+uni import ./path/to/agents/ --name my-team
 ```
 
 | 命令 | 说明 |
@@ -275,6 +286,11 @@ uni reset <id>
 | `uni status` | 查看已部署的 Uni / Agent 概览 |
 | `uni cleanup <id>` | 清理一个 Universe 及其所有文件 |
 | `uni reset <id>` | 重置运行时数据，保留 SOUL.md 等配置 |
+| `uni agency init` | 下载 agency-agents 仓库到本地 |
+| `uni agency list` | 查看可用分类和 Agent 数量 |
+| `uni agency update` | 拉取 agency-agents 最新更新 |
+| `uni agency import` | 按分类名导入 Agent 到 universe.yaml |
+| `uni import` | 从原始目录路径导入 Agent（高级用法） |
 
 ## OpenClaw 桥接
 
@@ -456,6 +472,115 @@ import {
 | 更新 | `updateUni()` | 重新部署 SOUL.md，处理新增/移除的 Agent |
 | 清理 | `uni cleanup <id>` | 删除工作区目录 + Agent 目录 + 从 openclaw.json 移除 + 从注册中心移除 |
 
+## Agency-Agents 桥接
+
+agents-uni-core 内置了对 [agency-agents](https://github.com/msitarzewski/agency-agents) 项目的桥接支持。agency-agents 是一个高质量的 Agent 人格模板库（140+ 个 Agent），覆盖工程、设计、营销、销售、产品、测试等 14 个领域。
+
+通过桥接，你可以**一键将这些 Agent 导入 agents-uni**，自动转换为 `universe.yaml` 并部署到 OpenClaw。
+
+### 初始化
+
+```bash
+# 下载 agency-agents 到 ~/.agents-uni/agency-agents/（仅需一次）
+uni agency init
+
+# 查看可用分类
+uni agency list
+
+# 拉取最新更新
+uni agency update
+```
+
+### 按分类导入
+
+```bash
+# 导入工程团队（23 个 Agent）
+uni agency import engineering
+
+# 同时导入多个分类
+uni agency import engineering design marketing
+
+# 导入全部 140+ 个 Agent
+uni agency import all --name full-team --type hybrid
+
+# 导入并直接部署 SOUL.md 到 OpenClaw
+uni agency import engineering --name my-eng --deploy --deploy-dir ~/.openclaw
+```
+
+### 编程式调用
+
+```typescript
+import {
+  agencyInit,
+  agencyUpdate,
+  agencyListCategories,
+  resolveAgencyCategories,
+  importAgencyAgents,
+  toSoulMd,
+} from '@agents-uni/core';
+
+// 1. 初始化（首次）
+agencyInit();
+
+// 2. 列出分类
+const categories = agencyListCategories();
+// [{ name: 'engineering', agentCount: 23, path: '...' }, ...]
+
+// 3. 按分类导入
+const dirs = resolveAgencyCategories(['engineering', 'design']);
+const result = importAgencyAgents(dirs, {
+  name: 'my-team',
+  type: 'competitive',
+  relationships: 'peer',
+});
+
+// result.config → UniverseConfig (可直接部署)
+// result.agents → 解析后的 Agent 数据 (含原始人格)
+console.log(`导入了 ${result.agents.length} 个 Agent`);
+
+// 4. 生成保留原始人格的 SOUL.md
+for (const agent of result.agents) {
+  const soul = toSoulMd(agent, { universe: result.config, language: 'zh' });
+  // soul 包含 agency-agents 原始人格 + agents-uni 组织上下文
+}
+
+// 5. 定期更新
+const updateResult = agencyUpdate();
+if (updateResult.updated) {
+  console.log(`更新: ${updateResult.oldCommit} → ${updateResult.newCommit}`);
+}
+```
+
+### 数据存储
+
+```
+~/.agents-uni/
+├── agency-agents/          ← agency-agents 仓库（git clone）
+│   ├── engineering/        ← 23 个工程 Agent
+│   ├── design/             ← 8 个设计 Agent
+│   ├── marketing/          ← 27 个营销 Agent
+│   └── ...                 ← 共 14 个分类
+└── agency-meta.json        ← 安装和更新元数据
+```
+
+### 可用分类
+
+| 分类 | Agent 数 | 包含 |
+|------|---------|------|
+| engineering | 23 | Backend Architect, Frontend Developer, DevOps, SRE, Security Engineer... |
+| marketing | 27 | SEO Specialist, TikTok/Douyin Strategist, Growth Hacker, Content Creator... |
+| specialized | 27 | Blockchain Auditor, Compliance Auditor, MCP Builder, Salesforce Architect... |
+| design | 8 | UI Designer, UX Architect, Brand Guardian, Visual Storyteller... |
+| sales | 8 | Deal Strategist, Outbound Strategist, Pipeline Analyst, Sales Coach... |
+| testing | 8 | API Tester, Performance Benchmarker, Accessibility Auditor... |
+| paid-media | 7 | PPC Strategist, Paid Social, Programmatic Buyer, Ad Creative... |
+| support | 6 | Analytics Reporter, Finance Tracker, Legal Compliance... |
+| spatial-computing | 6 | visionOS Engineer, XR Developer, Terminal Integration... |
+| project-management | 6 | Jira Steward, Project Shepherd, Studio Producer... |
+| academic | 5 | Anthropologist, Historian, Psychologist, Narratologist... |
+| product | 5 | Product Manager, Sprint Prioritizer, Feedback Synthesizer... |
+| game-development | 5 | Game Designer, Level Designer, Narrative Designer, Audio Engineer... |
+
 ## 架构
 
 ```
@@ -547,6 +672,14 @@ import {
   TaskDispatcher,      // 下发 TASK.md → 收集 SUBMISSION.md
   FileWorkspaceIO,     // 文件系统 I/O 后端
   MemoryWorkspaceIO,   // 内存 I/O 后端（用于测试）
+
+  // 🆕 Agency-agents 桥接
+  agencyInit,              // 下载 agency-agents 仓库
+  agencyUpdate,            // 拉取最新更新
+  agencyListCategories,    // 列出可用分类
+  resolveAgencyCategories, // 分类名 → 目录路径
+  importAgencyAgents,      // 批量导入并生成 UniverseConfig
+  toSoulMd,                // 生成保留原始人格的 SOUL.md
 } from '@agents-uni/core';
 ```
 
@@ -571,11 +704,11 @@ agents-uni-core/
     core/           # 运行时引擎（Universe, Registry, Graph, StateMachine, ...）
     evolution/      # 自优化（Performance, Promotion, Memory, ...）
     spec/           # YAML 解析、验证、编译
-    bridge/         # OpenClaw 桥接（SOUL.md 生成、任务调度、工作区 I/O、Uni 注册中心）
+    bridge/         # OpenClaw 桥接（SOUL.md 生成、任务调度、工作区 I/O、Uni 注册中心、agency-agents 桥接）
     dashboard/      # 🆕 Dashboard 仪表盘（Hono 服务器、HTML 模板、API 路由、扩展机制）
     schema/         # JSON Schema 验证
     templates/      # 5 种内置组织模板
-    cli/            # 命令行工具（10 个命令）
+    cli/            # 命令行工具（15 个命令）
   create-uni/       # npx create-uni 脚手架工具
   tests/            # 单元测试（41 个测试，7 个套件）
 ```

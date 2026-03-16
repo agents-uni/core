@@ -51,6 +51,20 @@ export {
   cleanupUni,
   updateUni,
   resetUni,
+  // Agency-agents bridge
+  parseAgencyAgentFile,
+  toAgentDefinition,
+  toSoulMd,
+  importAgencyAgents,
+  // Agency-agents registry
+  getAgencyDir,
+  isAgencyInstalled,
+  agencyInit,
+  agencyUpdate,
+  agencyListCategories,
+  agencyStatus,
+  resolveAgencyCategories,
+  getAvailableCategories,
 } from './bridge/index.js';
 export type {
   SoulGeneratorOptions,
@@ -65,6 +79,15 @@ export type {
   EvaluationCriterion,
   UniRegistryEntry,
   UniRegistry,
+  // Agency-agents bridge types
+  AgencyAgentFile,
+  AgencyAgentFrontmatter,
+  ImportOptions,
+  ImportResult,
+  AgencyCategory,
+  AgencyCategoryInfo,
+  AgencyStatus,
+  AgencyUpdateResult,
 } from './bridge/index.js';
 
 // Dashboard

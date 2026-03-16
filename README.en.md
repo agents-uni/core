@@ -21,6 +21,7 @@
   <a href="#openclaw-bridge">OpenClaw Bridge</a> &bull;
   <a href="#dashboard">Dashboard</a> &bull;
   <a href="#multi-uni-management">Multi-Uni</a> &bull;
+  <a href="#agency-agents-bridge">Agency-Agents</a> &bull;
   <a href="./DESIGN.md">Design Doc</a>
 </p>
 
@@ -247,20 +248,30 @@ uni deploy universe.yaml --dir ./workspaces --lang zh
 # Interactive project initialization
 uni init
 
-# 🆕 Start the Dashboard web UI
+# Start the Dashboard web UI
 uni dashboard [--port 8089]
 
-# 🆕 List all registered universes
+# List all registered universes
 uni list
 
-# 🆕 Overview of deployed unis and agents
+# Overview of deployed unis and agents
 uni status
 
-# 🆕 Remove a universe and all its files
+# Remove a universe and all its files
 uni cleanup <id>
 
-# 🆕 Reset runtime data, keep configuration
+# Reset runtime data, keep configuration
 uni reset <id>
+
+# 🆕 Agency-agents bridge
+uni agency init                           # Download agency-agents repo
+uni agency list                           # List available categories
+uni agency update                         # Pull latest updates
+uni agency import engineering design      # Import by category
+uni agency import all --name full-team    # Import all agents
+
+# Import from raw directory paths (advanced)
+uni import ./path/to/agents/ --name my-team
 ```
 
 | Command | Description |
@@ -275,6 +286,11 @@ uni reset <id>
 | `uni status` | Overview of deployed unis and agents |
 | `uni cleanup <id>` | Remove a universe and all its files |
 | `uni reset <id>` | Reset runtime data, keep SOUL.md config |
+| `uni agency init` | Download agency-agents repo locally |
+| `uni agency list` | List available categories and agent counts |
+| `uni agency update` | Pull latest agency-agents updates |
+| `uni agency import` | Import agents by category name to universe.yaml |
+| `uni import` | Import from raw directory paths (advanced) |
 
 ## OpenClaw Bridge
 
@@ -456,6 +472,115 @@ import {
 | Update | `updateUni()` | Re-deploy SOUL.md, handle added/removed agents |
 | Cleanup | `uni cleanup <id>` | Delete workspace + agent dirs + remove from openclaw.json + registry |
 
+## Agency-Agents Bridge
+
+agents-uni-core has built-in bridge support for [agency-agents](https://github.com/msitarzewski/agency-agents), a high-quality agent persona library with 140+ agents covering 14 domains (engineering, design, marketing, sales, product, testing, etc.).
+
+With the bridge, you can **import these agents into agents-uni with one command**, auto-convert them to `universe.yaml`, and deploy to OpenClaw.
+
+### Initialize
+
+```bash
+# Download agency-agents to ~/.agents-uni/agency-agents/ (one-time)
+uni agency init
+
+# List available categories
+uni agency list
+
+# Pull latest updates
+uni agency update
+```
+
+### Import by Category
+
+```bash
+# Import the engineering team (23 agents)
+uni agency import engineering
+
+# Import multiple categories
+uni agency import engineering design marketing
+
+# Import all 140+ agents
+uni agency import all --name full-team --type hybrid
+
+# Import and deploy SOUL.md to OpenClaw
+uni agency import engineering --name my-eng --deploy --deploy-dir ~/.openclaw
+```
+
+### Programmatic Usage
+
+```typescript
+import {
+  agencyInit,
+  agencyUpdate,
+  agencyListCategories,
+  resolveAgencyCategories,
+  importAgencyAgents,
+  toSoulMd,
+} from '@agents-uni/core';
+
+// 1. Initialize (first time only)
+agencyInit();
+
+// 2. List categories
+const categories = agencyListCategories();
+// [{ name: 'engineering', agentCount: 23, path: '...' }, ...]
+
+// 3. Import by category
+const dirs = resolveAgencyCategories(['engineering', 'design']);
+const result = importAgencyAgents(dirs, {
+  name: 'my-team',
+  type: 'competitive',
+  relationships: 'peer',
+});
+
+// result.config → UniverseConfig (ready to deploy)
+// result.agents → parsed agent data (with original personality)
+console.log(`Imported ${result.agents.length} agents`);
+
+// 4. Generate SOUL.md preserving original personality
+for (const agent of result.agents) {
+  const soul = toSoulMd(agent, { universe: result.config, language: 'en' });
+  // soul contains agency-agents original personality + agents-uni org context
+}
+
+// 5. Periodic updates
+const updateResult = agencyUpdate();
+if (updateResult.updated) {
+  console.log(`Updated: ${updateResult.oldCommit} → ${updateResult.newCommit}`);
+}
+```
+
+### Data Storage
+
+```
+~/.agents-uni/
+├── agency-agents/          ← agency-agents repo (git clone)
+│   ├── engineering/        ← 23 engineering agents
+│   ├── design/             ← 8 design agents
+│   ├── marketing/          ← 27 marketing agents
+│   └── ...                 ← 14 categories total
+└── agency-meta.json        ← install and update metadata
+```
+
+### Available Categories
+
+| Category | Agents | Includes |
+|----------|--------|----------|
+| engineering | 23 | Backend Architect, Frontend Developer, DevOps, SRE, Security Engineer... |
+| marketing | 27 | SEO Specialist, TikTok/Douyin Strategist, Growth Hacker, Content Creator... |
+| specialized | 27 | Blockchain Auditor, Compliance Auditor, MCP Builder, Salesforce Architect... |
+| design | 8 | UI Designer, UX Architect, Brand Guardian, Visual Storyteller... |
+| sales | 8 | Deal Strategist, Outbound Strategist, Pipeline Analyst, Sales Coach... |
+| testing | 8 | API Tester, Performance Benchmarker, Accessibility Auditor... |
+| paid-media | 7 | PPC Strategist, Paid Social, Programmatic Buyer, Ad Creative... |
+| support | 6 | Analytics Reporter, Finance Tracker, Legal Compliance... |
+| spatial-computing | 6 | visionOS Engineer, XR Developer, Terminal Integration... |
+| project-management | 6 | Jira Steward, Project Shepherd, Studio Producer... |
+| academic | 5 | Anthropologist, Historian, Psychologist, Narratologist... |
+| product | 5 | Product Manager, Sprint Prioritizer, Feedback Synthesizer... |
+| game-development | 5 | Game Designer, Level Designer, Narrative Designer, Audio Engineer... |
+
 ## Architecture
 
 ```
@@ -547,6 +672,14 @@ import {
   TaskDispatcher,      // Dispatch TASK.md → collect SUBMISSION.md
   FileWorkspaceIO,     // File-system I/O backend
   MemoryWorkspaceIO,   // In-memory I/O backend (for testing)
+
+  // 🆕 Agency-agents bridge
+  agencyInit,              // Download agency-agents repo
+  agencyUpdate,            // Pull latest updates
+  agencyListCategories,    // List available categories
+  resolveAgencyCategories, // Category names → directory paths
+  importAgencyAgents,      // Batch import and generate UniverseConfig
+  toSoulMd,                // Generate SOUL.md preserving original personality
 } from '@agents-uni/core';
 ```
 
@@ -571,11 +704,11 @@ agents-uni-core/
     core/           # Runtime engine (Universe, Registry, Graph, StateMachine, ...)
     evolution/      # Self-optimization (Performance, Promotion, Memory, ...)
     spec/           # YAML parsing, validation, compilation
-    bridge/         # OpenClaw bridge (SOUL.md, task dispatch, workspace I/O, uni registry)
+    bridge/         # OpenClaw bridge (SOUL.md, task dispatch, workspace I/O, uni registry, agency-agents bridge)
     dashboard/      # 🆕 Dashboard (Hono server, HTML templates, API routes, extension system)
     schema/         # JSON Schema for spec validation
     templates/      # 5 built-in organizational templates
-    cli/            # Command-line interface (10 commands)
+    cli/            # Command-line interface (15 commands)
   create-uni/       # npx create-uni scaffolding tool
   tests/            # Unit tests (41 tests, 7 suites)
 ```

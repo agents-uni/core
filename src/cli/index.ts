@@ -152,4 +152,272 @@ program
     console.log(chalk.gray(`  Cleared ${result.clearedTasks.length} runtime files`));
   });
 
+// ─── agency-agents 桥接 ──────────────────────
+
+const agency = program
+  .command('agency')
+  .description('Manage agency-agents integration (init, update, list, import)');
+
+agency
+  .command('init')
+  .description('Download agency-agents repository (~140 high-quality agent definitions)')
+  .option('--full', 'Full clone (default: shallow clone for speed)', false)
+  .action(async (opts: { full: boolean }) => {
+    const {
+      isAgencyInstalled,
+      agencyInit,
+      agencyStatus,
+    } = await import('../bridge/agency-registry.js');
+
+    if (isAgencyInstalled()) {
+      const status = agencyStatus();
+      console.log(chalk.yellow(`\n  agency-agents is already installed at ${status.dir}`));
+      console.log(chalk.gray(`  ${status.totalAgents} agents across ${status.categories?.length} categories`));
+      console.log(chalk.gray(`  Run \`uni agency update\` to pull latest changes.\n`));
+      return;
+    }
+
+    console.log(chalk.yellow('\n  Downloading agency-agents repository...\n'));
+    console.log(chalk.gray('  Source: https://github.com/msitarzewski/agency-agents'));
+    console.log(chalk.gray('  This may take a moment...\n'));
+
+    try {
+      agencyInit(!opts.full);
+      const status = agencyStatus();
+      console.log(chalk.green(`  ✓ Installed to ${status.dir}`));
+      console.log(chalk.green(`  ✓ ${status.totalAgents} agents across ${status.categories?.length} categories\n`));
+      console.log(chalk.gray('  Next steps:'));
+      console.log(chalk.gray('    uni agency list              — see available categories'));
+      console.log(chalk.gray('    uni agency import engineering — import a category'));
+      console.log(chalk.gray('    uni agency import --all       — import all agents\n'));
+    } catch (e) {
+      console.error(chalk.red(`  ✗ Failed: ${e instanceof Error ? e.message : e}\n`));
+      process.exit(1);
+    }
+  });
+
+agency
+  .command('update')
+  .description('Pull latest changes from agency-agents repository')
+  .action(async () => {
+    const { isAgencyInstalled, agencyUpdate } = await import('../bridge/agency-registry.js');
+
+    if (!isAgencyInstalled()) {
+      console.error(chalk.red('\n  agency-agents is not installed. Run `uni agency init` first.\n'));
+      process.exit(1);
+    }
+
+    console.log(chalk.yellow('\n  Checking for updates...\n'));
+
+    try {
+      const result = agencyUpdate();
+      if (result.updated) {
+        console.log(chalk.green(`  ✓ Updated: ${result.oldCommit} → ${result.newCommit}`));
+        if (result.changelog.length > 0) {
+          console.log(chalk.gray('\n  Changelog:'));
+          for (const line of result.changelog.slice(0, 10)) {
+            console.log(chalk.gray(`    ${line}`));
+          }
+          if (result.changelog.length > 10) {
+            console.log(chalk.gray(`    ... and ${result.changelog.length - 10} more`));
+          }
+        }
+      } else {
+        console.log(chalk.green(`  ✓ Already up to date (${result.newCommit})`));
+      }
+      console.log();
+    } catch (e) {
+      console.error(chalk.red(`  ✗ Update failed: ${e instanceof Error ? e.message : e}\n`));
+      process.exit(1);
+    }
+  });
+
+agency
+  .command('list')
+  .description('List available agent categories and agent counts')
+  .action(async () => {
+    const { isAgencyInstalled, agencyStatus } = await import('../bridge/agency-registry.js');
+
+    if (!isAgencyInstalled()) {
+      console.error(chalk.red('\n  agency-agents is not installed. Run `uni agency init` first.\n'));
+      process.exit(1);
+    }
+
+    const status = agencyStatus();
+
+    console.log(chalk.bold('\n  📦 agency-agents\n'));
+    console.log(chalk.gray(`  Location: ${status.dir}`));
+    console.log(chalk.gray(`  Commit:   ${status.commit}`));
+    console.log(chalk.gray(`  Updated:  ${status.lastUpdated}\n`));
+
+    console.log(chalk.gray('  Category                  Agents'));
+    console.log(chalk.gray('  ' + '─'.repeat(42)));
+
+    let total = 0;
+    for (const cat of status.categories ?? []) {
+      const name = cat.name.padEnd(26);
+      total += cat.agentCount;
+      console.log(`  ${chalk.cyan(name)} ${chalk.white(String(cat.agentCount))}`);
+    }
+
+    console.log(chalk.gray('  ' + '─'.repeat(42)));
+    console.log(`  ${chalk.bold('Total'.padEnd(26))} ${chalk.bold(String(total))}`);
+    console.log();
+  });
+
+agency
+  .command('import <categories...>')
+  .description('Import agents by category name (e.g., engineering design) or --all')
+  .option('-n, --name <name>', 'Universe name', 'imported-universe')
+  .option('-t, --type <type>', 'Universe type (flat|competitive|hierarchical|hybrid)', 'flat')
+  .option('-r, --relationships <strategy>', 'Relationship strategy (none|peer|competitive)', 'none')
+  .option('-o, --output <file>', 'Output file path', 'universe.yaml')
+  .option('--deploy', 'Also deploy SOUL.md files to OpenClaw workspaces', false)
+  .option('--deploy-dir <dir>', 'OpenClaw directory for deployment', '')
+  .option('--lang <lang>', 'Language for generated content (zh|en)', 'en')
+  .action(async (categories: string[], opts) => {
+    const { resolve } = await import('node:path');
+    const { writeFileSync, mkdirSync } = await import('node:fs');
+    const { stringify } = await import('yaml');
+    const { importAgencyAgents, toSoulMd } = await import('../bridge/agency-import.js');
+    const { resolveAgencyCategories, isAgencyInstalled } = await import('../bridge/agency-registry.js');
+
+    if (!isAgencyInstalled()) {
+      console.error(chalk.red('\n  agency-agents is not installed. Run `uni agency init` first.\n'));
+      process.exit(1);
+    }
+
+    let dirs: string[];
+    try {
+      dirs = resolveAgencyCategories(categories);
+    } catch (e) {
+      console.error(chalk.red(`\n  ✗ ${e instanceof Error ? e.message : e}\n`));
+      process.exit(1);
+    }
+
+    const label = categories.includes('all')
+      ? 'all categories'
+      : categories.join(', ');
+    console.log(chalk.yellow(`\n  Importing agents from ${label}...\n`));
+
+    const result = importAgencyAgents(dirs, {
+      name: opts.name,
+      type: opts.type as 'flat' | 'competitive' | 'hierarchical' | 'hybrid',
+      relationships: opts.relationships as 'none' | 'peer' | 'competitive',
+      language: opts.lang as 'zh' | 'en',
+    });
+
+    // Print warnings
+    for (const w of result.warnings) {
+      console.log(chalk.yellow(`  ⚠ ${w}`));
+    }
+
+    // Print imported agents
+    console.log(chalk.green(`  ✓ Imported ${result.agents.length} agents:\n`));
+    for (const agent of result.agents) {
+      console.log(
+        `    ${agent.frontmatter.emoji ?? '🤖'} ${chalk.bold(agent.frontmatter.name.padEnd(30))} ${chalk.gray(agent.id)}`
+      );
+    }
+
+    // Write universe.yaml
+    const outputPath = resolve(opts.output);
+    const yamlContent = stringify(result.config, { lineWidth: 120 });
+    writeFileSync(outputPath, yamlContent, 'utf-8');
+    console.log(chalk.green(`\n  ✓ Written to ${outputPath}`));
+
+    // Optional: deploy SOUL.md files
+    if (opts.deploy) {
+      const { join } = await import('node:path');
+      const openclawDir = opts.deployDir || undefined;
+
+      for (const agent of result.agents) {
+        const soulContent = toSoulMd(agent, {
+          universe: result.config,
+          language: opts.lang as 'zh' | 'en',
+        });
+
+        const wsDir = join(
+          openclawDir ?? `${process.env.HOME}/.openclaw`,
+          `workspace-${agent.id}`
+        );
+        mkdirSync(wsDir, { recursive: true });
+        writeFileSync(join(wsDir, 'SOUL.md'), soulContent, 'utf-8');
+      }
+
+      console.log(chalk.green(`  ✓ Deployed ${result.agents.length} SOUL.md files to OpenClaw workspaces`));
+    }
+
+    console.log();
+  });
+
+// ─── import (raw paths, for power users) ─────
+
+program
+  .command('import <dirs...>')
+  .description('Import agents from raw directory paths into a universe.yaml')
+  .option('-n, --name <name>', 'Universe name', 'imported-universe')
+  .option('-t, --type <type>', 'Universe type (flat|competitive|hierarchical|hybrid)', 'flat')
+  .option('-r, --relationships <strategy>', 'Relationship strategy (none|peer|competitive)', 'none')
+  .option('-o, --output <file>', 'Output file path', 'universe.yaml')
+  .option('--deploy', 'Also deploy SOUL.md files to OpenClaw workspaces', false)
+  .option('--deploy-dir <dir>', 'OpenClaw directory for deployment', '')
+  .option('--lang <lang>', 'Language for generated content (zh|en)', 'en')
+  .action(async (dirs: string[], opts) => {
+    const { resolve } = await import('node:path');
+    const { writeFileSync, mkdirSync } = await import('node:fs');
+    const { stringify } = await import('yaml');
+    const { importAgencyAgents, toSoulMd } = await import('../bridge/agency-import.js');
+
+    const resolvedDirs = dirs.map((d: string) => resolve(d));
+
+    console.log(chalk.yellow(`\n  Importing agents from ${resolvedDirs.length} director${resolvedDirs.length > 1 ? 'ies' : 'y'}...\n`));
+
+    const result = importAgencyAgents(resolvedDirs, {
+      name: opts.name,
+      type: opts.type as 'flat' | 'competitive' | 'hierarchical' | 'hybrid',
+      relationships: opts.relationships as 'none' | 'peer' | 'competitive',
+      language: opts.lang as 'zh' | 'en',
+    });
+
+    for (const w of result.warnings) {
+      console.log(chalk.yellow(`  ⚠ ${w}`));
+    }
+
+    console.log(chalk.green(`  ✓ Imported ${result.agents.length} agents:\n`));
+    for (const agent of result.agents) {
+      console.log(
+        `    ${agent.frontmatter.emoji ?? '🤖'} ${chalk.bold(agent.frontmatter.name.padEnd(30))} ${chalk.gray(agent.id)}`
+      );
+    }
+
+    const outputPath = resolve(opts.output);
+    const yamlContent = stringify(result.config, { lineWidth: 120 });
+    writeFileSync(outputPath, yamlContent, 'utf-8');
+    console.log(chalk.green(`\n  ✓ Written to ${outputPath}`));
+
+    if (opts.deploy) {
+      const { join } = await import('node:path');
+      const openclawDir = opts.deployDir || undefined;
+
+      for (const agent of result.agents) {
+        const soulContent = toSoulMd(agent, {
+          universe: result.config,
+          language: opts.lang as 'zh' | 'en',
+        });
+
+        const wsDir = join(
+          openclawDir ?? `${process.env.HOME}/.openclaw`,
+          `workspace-${agent.id}`
+        );
+        mkdirSync(wsDir, { recursive: true });
+        writeFileSync(join(wsDir, 'SOUL.md'), soulContent, 'utf-8');
+      }
+
+      console.log(chalk.green(`  ✓ Deployed ${result.agents.length} SOUL.md files to OpenClaw workspaces`));
+    }
+
+    console.log();
+  });
+
 program.parse();
