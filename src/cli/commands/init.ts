@@ -13,20 +13,20 @@ const TEMPLATES: Record<string, { label: string; file: string }> = {
   military: { label: '军事指挥 (Military command)', file: 'military.yaml' },
 };
 
-export async function initCommand(name?: string): Promise<void> {
+export async function initCommand(name?: string, opts?: { template?: string }): Promise<void> {
   const projectName = name ?? 'my-universe';
+  const templateKey = opts?.template && opts.template in TEMPLATES ? opts.template : 'competitive';
 
   console.log(chalk.bold(`\n  Creating universe: ${projectName}\n`));
 
   // Show available templates
   console.log(chalk.underline('  Available templates:'));
   for (const [key, val] of Object.entries(TEMPLATES)) {
-    console.log(`    ${chalk.cyan(key.padEnd(15))} ${val.label}`);
+    const marker = key === templateKey ? chalk.green(' ←') : '';
+    console.log(`    ${chalk.cyan(key.padEnd(15))} ${val.label}${marker}`);
   }
   console.log('');
 
-  // Default to competitive template
-  const templateKey = 'competitive';
   console.log(chalk.gray(`  Using template: ${templateKey}`));
 
   // Create project directory
@@ -60,13 +60,13 @@ export async function initCommand(name?: string): Promise<void> {
       deploy: 'uni deploy universe.yaml',
     },
     dependencies: {
-      'agents-uni-core': '^0.1.0',
+      '@agents-uni/core': '^0.1.0',
     },
   };
   writeFileSync(join(projectDir, 'package.json'), JSON.stringify(packageJson, null, 2));
 
   // Create README
-  const readme = `# ${projectName}\n\nAn agent universe built with [agents-uni-core](https://github.com/agents-uni-core).\n\n## Commands\n\n\`\`\`bash\nnpm run validate   # Validate universe spec\nnpm run visualize  # Visualize relationships\nnpm run deploy     # Deploy to OpenClaw\n\`\`\`\n`;
+  const readme = `# ${projectName}\n\nAn agent universe built with [agents-uni-core](https://github.com/agents-uni/core).\n\n## Commands\n\n\`\`\`bash\nnpm run validate   # Validate universe spec\nnpm run visualize  # Visualize relationships\nnpm run deploy     # Deploy to OpenClaw\n\`\`\`\n`;
   writeFileSync(join(projectDir, 'README.md'), readme);
 
   console.log(chalk.green(`\n✓ Created universe project at ./${projectName}`));

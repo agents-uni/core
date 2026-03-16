@@ -45,14 +45,6 @@ Each agent's SOUL.md defines not only its personality and capabilities, but its 
 
 ## Quick Start
 
-### Scaffold a new project
-
-```bash
-npx create-uni my-universe
-# or with a specific template
-npx create-uni my-universe --template competitive
-```
-
 ### Install the CLI globally
 
 ```bash
@@ -224,7 +216,7 @@ Five ready-to-use organizational templates:
 | `military` | Commander + executors | Single chain of command | Mission-critical execution |
 
 ```bash
-npx create-uni my-project --template competitive
+uni init my-project --template competitive
 ```
 
 ## CLI
@@ -709,7 +701,6 @@ agents-uni-core/
     schema/         # JSON Schema for spec validation
     templates/      # 5 built-in organizational templates
     cli/            # Command-line interface (15 commands)
-  create-uni/       # npx create-uni scaffolding tool
   tests/            # Unit tests (41 tests, 7 suites)
 ```
 

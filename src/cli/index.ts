@@ -41,8 +41,9 @@ program
 
 program
   .command('init [name]')
-  .description('Initialize a new universe project interactively')
-  .action(initCommand);
+  .description('Initialize a new universe project')
+  .option('-t, --template <template>', 'Template (government|corporation|competitive|flat|military)', 'competitive')
+  .action((name: string | undefined, opts: { template?: string }) => initCommand(name, opts));
 
 program
   .command('inspect <file>')

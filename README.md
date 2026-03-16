@@ -45,14 +45,6 @@
 
 ## 快速开始
 
-### 脚手架创建项目
-
-```bash
-npx create-uni my-universe
-# 或指定模板
-npx create-uni my-universe --template competitive
-```
-
 ### 全局安装 CLI
 
 ```bash
@@ -224,7 +216,7 @@ protocols:
 | `military` | 指挥官 + 执行者 | 单一指挥链 | 关键任务执行 |
 
 ```bash
-npx create-uni my-project --template competitive
+uni init my-project --template competitive
 ```
 
 ## 命令行工具
@@ -709,7 +701,6 @@ agents-uni-core/
     schema/         # JSON Schema 验证
     templates/      # 5 种内置组织模板
     cli/            # 命令行工具（15 个命令）
-  create-uni/       # npx create-uni 脚手架工具
   tests/            # 单元测试（41 个测试，7 个套件）
 ```
 

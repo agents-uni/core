@@ -27,7 +27,7 @@ export async function generate(name: string, template: string): Promise<void> {
       'deploy:dry': 'uni deploy universe.yaml --dry-run',
     },
     dependencies: {
-      'agents-uni-core': '^0.1.0',
+      '@agents-uni/core': '^0.1.0',
     },
   };
   writeFileSync(join(projectDir, 'package.json'), JSON.stringify(pkg, null, 2));
@@ -49,7 +49,7 @@ export async function generate(name: string, template: string): Promise<void> {
 function generateReadme(name: string, template: string): string {
   return `# ${name}
 
-An agent universe built with [agents-uni-core](https://github.com/agents-uni-core).
+An agent universe built with [agents-uni-core](https://github.com/agents-uni/core).
 
 Template: **${template}**
 
@@ -76,6 +76,6 @@ Edit \`universe.yaml\` to customize your agent organization:
 ## Architecture
 
 This universe uses the **${template}** organizational model.
-See the [agents-uni-core documentation](https://github.com/agents-uni-core) for details.
+See the [agents-uni-core documentation](https://github.com/agents-uni/core) for details.
 `;
 }
