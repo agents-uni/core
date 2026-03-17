@@ -723,8 +723,30 @@ npm run build
 npm run dev
 ```
 
+## @agents-uni/rel — 多维关系引擎
+
+v0.2.0+ 引入 [`@agents-uni/rel`](https://github.com/agents-uni/rel) 作为关系引擎：
+
+- **多维关系**：每条关系携带 trust/authority/affinity 等多个维度，取代简单加权边
+- **事件溯源**：所有状态变更通过 `RelationshipEvent`，完整可审计
+- **关系记忆**：短期事件 → 长期模式 + 关键时刻 + 自然语言摘要
+- **涌现检测**：从交互模式自动发现未声明的关系
+- **16+ 内置模板**：覆盖所有旧版关系类型 + 演化规则
+- **社交网络分析**：影响力排名、社区检测、结构分析
+
+```typescript
+import { createRelEngine, computeInfluence } from '@agents-uni/core';
+
+const { graph, evolution, emergence } = createRelEngine(config);
+evolution.processEvent('alice', 'bob', 'collaboration.success');
+const scores = computeInfluence(graph);
+```
+
+详见 [@agents-uni/rel README](https://github.com/agents-uni/rel)。
+
 ## 相关项目
 
+- [**@agents-uni/rel**](https://github.com/agents-uni/rel) — 多维关系引擎：事件溯源、记忆驱动、可进化 ([npm](https://www.npmjs.com/package/@agents-uni/rel))
 - [**@agents-uni/zhenhuan**](https://github.com/agents-uni/zhenhuan) — 基于 agents-uni-core 的甄嬛后宫 Agent 竞技系统 ([npm](https://www.npmjs.com/package/@agents-uni/zhenhuan))
 
 ## License

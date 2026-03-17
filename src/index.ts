@@ -65,6 +65,17 @@ export {
   agencyStatus,
   resolveAgencyCategories,
   getAvailableCategories,
+  // @agents-uni/rel bridge (multi-dimensional relationships)
+  createRelGraph,
+  createRelEngine,
+  generateEnhancedRelationshipSection,
+  MultiDimRelationshipGraph,
+  EvolutionEngine,
+  EmergenceDetector,
+  computeInfluence,
+  analyzeStructure,
+  detectClusters,
+  RelMemoryConsolidator,
 } from './bridge/index.js';
 export type {
   SoulGeneratorOptions,
@@ -88,6 +99,21 @@ export type {
   AgencyCategoryInfo,
   AgencyStatus,
   AgencyUpdateResult,
+  // @agents-uni/rel types
+  MultiDimRelationship,
+  Dimension,
+  DimensionSeed,
+  RelationshipSeed,
+  RelationshipTemplate,
+  EvolutionRule,
+  RelEvent,
+  Pattern,
+  RelationshipContext,
+  InfluenceScore,
+  StructuralAnalysis,
+  EmergenceResult,
+  ConsolidationResult,
+  RelEngineBundle,
 } from './bridge/index.js';
 
 // Dashboard

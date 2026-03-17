@@ -723,8 +723,30 @@ npm run build
 npm run dev
 ```
 
+## @agents-uni/rel — Multi-dimensional Relationship Engine
+
+v0.2.0+ introduces [`@agents-uni/rel`](https://github.com/agents-uni/rel) as the relationship engine:
+
+- **Multi-dimensional**: Each relationship carries trust/authority/affinity dimensions instead of a single weight
+- **Event-sourced**: All state changes through `RelationshipEvent`, fully auditable
+- **Memory-backed**: Short-term events → long-term patterns + key moments + natural-language summaries
+- **Emergence detection**: Auto-discovers undeclared relationships from interaction patterns
+- **16+ built-in templates**: Covers all legacy relationship types + evolution rules
+- **Social network analysis**: Influence ranking, community detection, structural analysis
+
+```typescript
+import { createRelEngine, computeInfluence } from '@agents-uni/core';
+
+const { graph, evolution, emergence } = createRelEngine(config);
+evolution.processEvent('alice', 'bob', 'collaboration.success');
+const scores = computeInfluence(graph);
+```
+
+See [@agents-uni/rel README](https://github.com/agents-uni/rel) for details.
+
 ## Related Projects
 
+- [**@agents-uni/rel**](https://github.com/agents-uni/rel) — Multi-dimensional relationship engine: event-sourced, memory-backed, evolvable ([npm](https://www.npmjs.com/package/@agents-uni/rel))
 - [**@agents-uni/zhenhuan**](https://github.com/agents-uni/zhenhuan) — Palace drama themed agent competition system built on agents-uni-core ([npm](https://www.npmjs.com/package/@agents-uni/zhenhuan))
 
 ## License

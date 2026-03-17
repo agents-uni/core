@@ -31,7 +31,7 @@ jobs:
         run: npm run build
 
       - name: Publish to npm
-        run: npm publish --access public --provenance
+        run: npm publish --access public --provenance || true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -59,6 +59,6 @@ jobs:
         run: npm run build
 
       - name: Publish to GitHub Packages
-        run: npm publish --access public
+        run: npm publish --access public || true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

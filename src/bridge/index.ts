@@ -39,6 +39,40 @@ export {
   type ImportResult,
 } from './agency-import.js';
 
+// @agents-uni/rel bridge (multi-dimensional relationships)
+export {
+  createRelGraph,
+  createRelEngine,
+  generateEnhancedRelationshipSection,
+  // Re-exports from @agents-uni/rel
+  MultiDimRelationshipGraph,
+  EvolutionEngine,
+  EmergenceDetector,
+  fromLegacyArray,
+  generateSoulRelationshipSection,
+  computeInfluence,
+  analyzeStructure,
+  detectClusters,
+} from './rel-bridge.js';
+export type {
+  MultiDimRelationship,
+  Dimension,
+  DimensionSeed,
+  RelationshipSeed,
+  RelationshipTemplate,
+  EvolutionRule,
+  RelEvent,
+  Pattern,
+  RelationshipContext,
+  InfluenceScore,
+  StructuralAnalysis,
+  EmergenceResult,
+  ConsolidationResult,
+  RelEngineBundle,
+} from './rel-bridge.js';
+// Re-export with alias to avoid name collision with core's MemoryConsolidator
+export { RelMemoryConsolidator } from './rel-bridge.js';
+
 // Agency-agents registry (repo lifecycle management)
 export {
   getAgencyDir,
