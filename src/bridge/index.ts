@@ -16,6 +16,14 @@ export {
   type FileWorkspaceIOOptions,
 } from './workspace-io.js';
 export {
+  ReviewDispatcher,
+  type ReviewConfig,
+  type AgentReview,
+  type SingleReview,
+  type ReviewResult,
+  type ReviewDispatcherOptions,
+} from './review-dispatcher.js';
+export {
   registerUni,
   listUnis,
   getUni,
