@@ -1222,7 +1222,10 @@ export function renderUniDetailPage(data: UniDetailData): string {
 
   const relationshipsHtml = config && config.relationships.length > 0
     ? `<div class="bg-surface-light rounded-xl p-6 border border-gray-700/50 mt-6">
-        <h2 class="text-lg font-semibold text-white mb-4">🔗 关系图谱</h2>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-white">🔗 关系图谱</h2>
+          <a href="/uni/${encodeURIComponent(entry.id)}/relationships" class="text-accent-light hover:underline text-sm">View Interactive Graph →</a>
+        </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           ${config.relationships.map(rel => `
               <div class="bg-surface rounded-lg p-3 border border-gray-700/30 flex items-center gap-3">
@@ -1526,6 +1529,323 @@ export function renderManagePage(unis: UniRegistryEntry[], healthStatus: {
   `;
 
   return renderLayout('管理中心', body, 'manage');
+}
+
+// ─── Relationship Graph Page ─────────────────────
+
+export interface RelationshipGraphData {
+  entry: UniRegistryEntry;
+  config: UniverseConfig | null;
+}
+
+export function renderRelationshipGraphPage(data: RelationshipGraphData): string {
+  const { entry, config } = data;
+  const uniId = entry.id;
+
+  const agentOptions = config
+    ? config.agents.map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.name)} (${escapeHtml(a.id)})</option>`).join('')
+    : '';
+
+  const relationshipTypes = [
+    'superior', 'subordinate', 'peer', 'competitive', 'ally', 'rival',
+    'mentor', 'advisor', 'reviewer', 'delegate', 'serves', 'collaborates',
+    'supervises', 'audits', 'competes', 'advises',
+  ];
+  const typeOptions = relationshipTypes.map(t => `<option value="${t}">${t}</option>`).join('');
+
+  const body = `
+    <div class="mb-6">
+      <a href="/uni/${encodeURIComponent(uniId)}" class="text-gray-500 hover:text-gray-300 text-sm transition">← 返回 ${escapeHtml(uniId)}</a>
+    </div>
+
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-3xl font-bold text-white mb-1">🔗 关系图谱 — ${escapeHtml(uniId)}</h1>
+        <p class="text-gray-400">Interactive relationship visualization with editing</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <!-- Graph Area (3 cols) -->
+      <div class="lg:col-span-3">
+        <div class="bg-surface-light rounded-xl border border-gray-700/50 overflow-hidden" style="height:600px;">
+          <div id="relGraph" style="width:100%;height:100%;"></div>
+        </div>
+      </div>
+
+      <!-- Sidebar (1 col) -->
+      <div class="space-y-4">
+        <!-- Selection Detail -->
+        <div class="bg-surface-light rounded-xl p-4 border border-gray-700/50">
+          <h3 class="text-sm font-semibold text-white mb-3">Selected</h3>
+          <div id="selectionDetail" class="text-sm text-gray-400">Click a node or edge</div>
+        </div>
+
+        <!-- Influence Ranking -->
+        <div class="bg-surface-light rounded-xl p-4 border border-gray-700/50">
+          <h3 class="text-sm font-semibold text-white mb-3">Influence Ranking</h3>
+          <div id="influenceList" class="text-sm space-y-1"></div>
+        </div>
+
+        <!-- Cluster Legend -->
+        <div class="bg-surface-light rounded-xl p-4 border border-gray-700/50">
+          <h3 class="text-sm font-semibold text-white mb-3">Clusters</h3>
+          <div id="clusterLegend" class="text-sm space-y-1"></div>
+        </div>
+
+        <!-- Edit Panel -->
+        <div class="bg-surface-light rounded-xl p-4 border border-gray-700/50">
+          <h3 class="text-sm font-semibold text-white mb-3">Edit Relationships</h3>
+          <div class="space-y-3">
+            <div>
+              <label class="text-xs text-gray-400">From</label>
+              <select id="editFrom" class="w-full mt-1 bg-surface text-gray-200 text-sm rounded px-2 py-1 border border-gray-700">
+                ${agentOptions}
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400">To</label>
+              <select id="editTo" class="w-full mt-1 bg-surface text-gray-200 text-sm rounded px-2 py-1 border border-gray-700">
+                ${agentOptions}
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400">Type</label>
+              <select id="editType" class="w-full mt-1 bg-surface text-gray-200 text-sm rounded px-2 py-1 border border-gray-700">
+                ${typeOptions}
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400">Weight (0-1)</label>
+              <input id="editWeight" type="number" min="0" max="1" step="0.1" value="0.5" class="w-full mt-1 bg-surface text-gray-200 text-sm rounded px-2 py-1 border border-gray-700">
+            </div>
+            <div class="flex gap-2">
+              <button onclick="addRelationship()" class="flex-1 px-3 py-1.5 bg-accent/20 text-accent-light rounded text-sm hover:bg-accent/30 transition">Add</button>
+              <button onclick="deleteSelected()" id="deleteBtn" class="flex-1 px-3 py-1.5 bg-red-600/20 text-red-300 rounded text-sm hover:bg-red-600/30 transition" disabled>Delete</button>
+            </div>
+            <button onclick="saveRelationships()" class="w-full px-3 py-1.5 bg-green-600/20 text-green-300 rounded text-sm hover:bg-green-600/30 transition">💾 Save to YAML</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Report Section -->
+    <div class="bg-surface-light rounded-xl p-6 border border-gray-700/50 mt-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-white">📊 Relationship Report</h2>
+        <button onclick="loadReport()" class="px-3 py-1 bg-accent/20 text-accent-light rounded text-sm hover:bg-accent/30 transition">Generate</button>
+      </div>
+      <div id="reportContent" class="text-sm text-gray-400">Click Generate to analyze relationships</div>
+    </div>
+
+    <script src="https://unpkg.com/vis-network@9/standalone/umd/vis-network.min.js"></script>
+    <script>
+      const UNI_ID = ${JSON.stringify(uniId)};
+      let network = null;
+      let vizData = null;
+      let selectedEdgeId = null;
+
+      const CLUSTER_COLORS = ['#818cf8', '#f472b6', '#34d399', '#fbbf24', '#fb923c', '#a78bfa', '#67e8f9', '#f87171'];
+
+      async function init() {
+        const res = await fetch('/api/unis/' + encodeURIComponent(UNI_ID) + '/relationships');
+        vizData = await res.json();
+        renderGraph(vizData);
+        renderInfluence(vizData);
+        renderClusterLegend(vizData);
+      }
+
+      function renderGraph(data) {
+        const clusterColorMap = {};
+        data.clusters.forEach((c, i) => { clusterColorMap[c.id] = CLUSTER_COLORS[i % CLUSTER_COLORS.length]; });
+
+        const nodes = new vis.DataSet(data.nodes.map(n => ({
+          id: n.id,
+          label: n.label || n.id,
+          title: (n.role || '') + '\\nInfluence: ' + n.influence.toFixed(2) + '\\nConnections: ' + n.connectionCount,
+          size: 15 + n.influence * 30,
+          color: { background: clusterColorMap[n.clusterId] || '#64748b', border: '#334155', highlight: { background: '#c084fc', border: '#7c3aed' } },
+          font: { color: '#e0e0e8', size: 12 },
+        })));
+
+        const edges = new vis.DataSet(data.edges.map(e => ({
+          id: e.id,
+          from: e.from,
+          to: e.to,
+          width: 1 + e.strength * 4,
+          color: { color: e.valence > 0.1 ? '#4ade80' : e.valence < -0.1 ? '#f87171' : '#64748b', highlight: '#c084fc' },
+          arrows: 'to',
+          title: e.dimensions.map(d => d.type + ': ' + d.value.toFixed(2)).join('\\n'),
+          smooth: { type: 'curvedCW', roundness: 0.15 },
+        })));
+
+        const container = document.getElementById('relGraph');
+        network = new vis.Network(container, { nodes, edges }, {
+          physics: { stabilization: { iterations: 100 }, barnesHut: { gravitationalConstant: -3000, springLength: 150 } },
+          interaction: { hover: true, multiselect: false },
+          layout: { improvedLayout: true },
+        });
+
+        network.on('selectNode', (params) => {
+          selectedEdgeId = null;
+          document.getElementById('deleteBtn').disabled = true;
+          const nodeId = params.nodes[0];
+          const node = data.nodes.find(n => n.id === nodeId);
+          if (node) {
+            const rels = data.edges.filter(e => e.from === nodeId || e.to === nodeId);
+            document.getElementById('selectionDetail').innerHTML =
+              '<div class="text-white font-medium">' + esc(node.label) + '</div>' +
+              (node.role ? '<div class="text-gray-400">' + esc(node.role) + '</div>' : '') +
+              '<div class="mt-2">Influence: <span class="text-accent-light">' + node.influence.toFixed(2) + '</span></div>' +
+              '<div>Connections: ' + node.connectionCount + '</div>' +
+              (node.clusterId ? '<div>Cluster: ' + esc(node.clusterId) + '</div>' : '') +
+              '<div class="mt-2 text-xs text-gray-500">' + rels.length + ' relationships</div>';
+          }
+        });
+
+        network.on('selectEdge', (params) => {
+          if (params.edges.length === 1 && params.nodes.length === 0) {
+            selectedEdgeId = params.edges[0];
+            document.getElementById('deleteBtn').disabled = false;
+            const edge = data.edges.find(e => e.id === selectedEdgeId);
+            if (edge) {
+              document.getElementById('selectionDetail').innerHTML =
+                '<div class="text-white font-medium">' + esc(edge.from) + ' → ' + esc(edge.to) + '</div>' +
+                '<div class="mt-2">Strength: ' + edge.strength.toFixed(2) + '</div>' +
+                '<div>Valence: <span class="' + (edge.valence > 0 ? 'text-green-400' : edge.valence < 0 ? 'text-red-400' : 'text-gray-400') + '">' + edge.valence.toFixed(2) + '</span></div>' +
+                '<div>Interactions: ' + edge.interactionCount + '</div>' +
+                '<div class="mt-2 space-y-1">' + edge.dimensions.map(d =>
+                  '<div class="flex justify-between"><span class="text-gray-400">' + esc(d.type) + '</span><span class="' + (d.value > 0 ? 'text-green-400' : d.value < 0 ? 'text-red-400' : 'text-gray-400') + '">' + d.value.toFixed(2) + '</span></div>'
+                ).join('') + '</div>';
+            }
+          } else {
+            selectedEdgeId = null;
+            document.getElementById('deleteBtn').disabled = true;
+          }
+        });
+
+        network.on('deselectNode', () => {
+          selectedEdgeId = null;
+          document.getElementById('deleteBtn').disabled = true;
+          document.getElementById('selectionDetail').innerHTML = 'Click a node or edge';
+        });
+        network.on('deselectEdge', () => {
+          selectedEdgeId = null;
+          document.getElementById('deleteBtn').disabled = true;
+          document.getElementById('selectionDetail').innerHTML = 'Click a node or edge';
+        });
+      }
+
+      function renderInfluence(data) {
+        const sorted = [...data.nodes].sort((a, b) => b.influence - a.influence);
+        document.getElementById('influenceList').innerHTML = sorted.map((n, i) =>
+          '<div class="flex justify-between"><span class="text-gray-300">' + (i + 1) + '. ' + esc(n.label) + '</span><span class="text-accent-light">' + n.influence.toFixed(2) + '</span></div>'
+        ).join('');
+      }
+
+      function renderClusterLegend(data) {
+        if (data.clusters.length === 0) {
+          document.getElementById('clusterLegend').innerHTML = '<span class="text-gray-500">No clusters</span>';
+          return;
+        }
+        document.getElementById('clusterLegend').innerHTML = data.clusters.map((c, i) =>
+          '<div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full inline-block" style="background:' + CLUSTER_COLORS[i % CLUSTER_COLORS.length] + '"></span><span class="text-gray-300">' + c.members.length + ' members (cohesion: ' + c.cohesion.toFixed(2) + ')</span></div>'
+        ).join('');
+      }
+
+      // ─── Edit Functions ───────────────────────────
+
+      // Track local edits to relationships (simple from/to/type/weight)
+      let localRelationships = null;
+
+      function getLocalRelationships() {
+        if (localRelationships !== null) return localRelationships;
+        // Load from current config
+        return fetch('/api/unis/' + encodeURIComponent(UNI_ID))
+          .then(r => r.json())
+          .then(d => {
+            localRelationships = (d.config && d.config.relationships) || [];
+            return localRelationships;
+          });
+      }
+
+      async function addRelationship() {
+        const from = document.getElementById('editFrom').value;
+        const to = document.getElementById('editTo').value;
+        const type = document.getElementById('editType').value;
+        const weight = parseFloat(document.getElementById('editWeight').value) || 0.5;
+        if (from === to) { alert('From and To must be different'); return; }
+
+        const rels = await getLocalRelationships();
+        rels.push({ from, to, type, weight });
+        localRelationships = rels;
+        await refreshGraph();
+      }
+
+      async function deleteSelected() {
+        if (!selectedEdgeId) return;
+        const edge = vizData.edges.find(e => e.id === selectedEdgeId);
+        if (!edge) return;
+
+        const rels = await getLocalRelationships();
+        const idx = rels.findIndex(r => r.from === edge.from && r.to === edge.to);
+        if (idx >= 0) {
+          rels.splice(idx, 1);
+          localRelationships = rels;
+          selectedEdgeId = null;
+          document.getElementById('deleteBtn').disabled = true;
+          await refreshGraph();
+        }
+      }
+
+      async function saveRelationships() {
+        const rels = await getLocalRelationships();
+        const res = await fetch('/api/unis/' + encodeURIComponent(UNI_ID) + '/relationships', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ relationships: rels }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          alert('Saved ' + data.count + ' relationships to YAML');
+          localRelationships = null;
+          await refreshGraph();
+        } else {
+          alert('Error: ' + (data.error || 'Unknown'));
+        }
+      }
+
+      async function refreshGraph() {
+        const res = await fetch('/api/unis/' + encodeURIComponent(UNI_ID) + '/relationships');
+        vizData = await res.json();
+        renderGraph(vizData);
+        renderInfluence(vizData);
+        renderClusterLegend(vizData);
+      }
+
+      async function loadReport() {
+        const el = document.getElementById('reportContent');
+        el.innerHTML = '<span class="text-gray-500">Loading...</span>';
+        const res = await fetch('/api/unis/' + encodeURIComponent(UNI_ID) + '/relationships/report');
+        const report = await res.json();
+        el.innerHTML =
+          '<div class="text-white font-medium mb-2">' + esc(report.summary) + '</div>' +
+          (report.hotspots.length > 0
+            ? '<div class="space-y-2 mt-3">' + report.hotspots.map(h =>
+                '<div class="p-2 rounded border ' +
+                (h.severity > 0.5 ? 'border-red-500/50 bg-red-500/10' : 'border-yellow-500/50 bg-yellow-500/10') +
+                '"><div class="text-xs font-medium ' + (h.severity > 0.5 ? 'text-red-300' : 'text-yellow-300') + '">' + esc(h.type) + ' (severity: ' + h.severity.toFixed(2) + ')</div><div class="text-gray-300 text-xs mt-1">' + esc(h.description) + '</div></div>'
+              ).join('') + '</div>'
+            : '<div class="text-gray-500 mt-2">No hotspots detected</div>');
+      }
+
+      function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+      init();
+    </script>
+  `;
+
+  return renderLayout(`Relationships — ${uniId}`, body);
 }
 
 // ─── Utilities ────────────────────────────────────

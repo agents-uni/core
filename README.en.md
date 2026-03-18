@@ -423,6 +423,22 @@ await startDashboard({ port: 8089, extensions: [extension] });
 // Extension API: GET /ext/zhenhuan-palace/leaderboard
 ```
 
+### Relationship Graph Page
+
+The Dashboard includes an interactive relationship graph page (`/uni/:id/relationships`), powered by vis-network:
+
+- Node size reflects influence score; color indicates cluster membership
+- Edge thickness = strength; color = valence (green for positive / red for negative / gray for neutral)
+- Click on nodes/edges to view detailed dimension info
+- Built-in relationship editing panel: add, delete, and modify relationships, saved back to universe.yaml
+- Relationship analysis report: conflict risk, power imbalance, isolated agent detection, and other hotspot analysis
+
+### Additional API Endpoints
+
+- `GET /api/unis/:id/relationships` — Returns VisualizationData (nodes + edges + clusters)
+- `GET /api/unis/:id/relationships/report` — Returns relationship analysis report
+- `PUT /api/unis/:id/relationships` — Edit and save relationships to YAML
+
 The UI uses server-side rendered HTML with Tailwind CDN, dark theme, no frontend build required.
 
 ## Multi-Uni Management

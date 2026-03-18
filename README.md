@@ -423,6 +423,22 @@ await startDashboard({ port: 8089, extensions: [extension] });
 // 扩展 API：GET /ext/zhenhuan-palace/leaderboard
 ```
 
+### 关系图谱页
+
+Dashboard 新增交互式关系图谱页面 (`/uni/:id/relationships`)，基于 vis-network 实现：
+
+- 节点大小反映 influence 得分，颜色标识 cluster 归属
+- 边的粗细=strength，颜色=valence（绿色正面/红色负面/灰色中性）
+- 点击节点/边查看详细维度信息
+- 内置关系编辑面板：添加、删除、修改关系，保存回 universe.yaml
+- 关系分析报告：冲突风险、权力失衡、孤立 Agent 等 hotspot 检测
+
+### 新增 API
+
+- `GET /api/unis/:id/relationships` — 返回 VisualizationData（节点+边+集群）
+- `GET /api/unis/:id/relationships/report` — 返回关系分析报告
+- `PUT /api/unis/:id/relationships` — 编辑并保存关系到 YAML
+
 UI 采用服务端渲染 HTML + Tailwind CDN，暗色主题，无需前端构建。
 
 ## 多 Uni 管理

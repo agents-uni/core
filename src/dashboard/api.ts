@@ -6,8 +6,9 @@
  */
 
 import { Hono } from 'hono';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import {
   listUnis,
   getUni,
@@ -16,12 +17,15 @@ import {
 } from '../bridge/uni-registry.js';
 import { readOpenClawConfig } from '../bridge/config-sync.js';
 import { parseSpecFile } from '../spec/parser.js';
+import { createRelGraph } from '../bridge/rel-bridge.js';
+import { generateReport } from '@agents-uni/rel';
 import {
   renderHomePage,
   renderUniDetailPage,
   renderAgentDetailPage,
   renderManagePage,
   renderGuidePage,
+  renderRelationshipGraphPage,
   type HomeStats,
 } from './templates.js';
 import type { DashboardConfig, DashboardExtension } from './server.js';
@@ -86,7 +90,7 @@ export function createDashboardRoutes(config: DashboardConfig): Hono {
     });
   });
 
-  /** Get relationships for a uni */
+  /** Get relationships for a uni (enhanced with visualization data) */
   app.get('/api/unis/:id/relationships', (c) => {
     const id = c.req.param('id');
     const uni = getUni(id, openclawDir);
@@ -95,21 +99,57 @@ export function createDashboardRoutes(config: DashboardConfig): Hono {
     const uniConfig = loadUniverseConfig(uni.specPath);
     if (!uniConfig) return c.json({ error: 'Cannot load spec' }, 500);
 
-    const nodes = uniConfig.agents.map(a => ({
-      id: a.id,
-      name: a.name,
-      role: a.role.title,
-      rank: a.rank,
-    }));
+    const relGraph = createRelGraph(uniConfig.relationships);
+    const agentMetadata: Record<string, { name?: string; role?: string; department?: string }> = {};
+    for (const agent of uniConfig.agents) {
+      agentMetadata[agent.id] = {
+        name: agent.name,
+        role: agent.role.title,
+        department: agent.role.department,
+      };
+    }
 
-    const edges = uniConfig.relationships.map(r => ({
-      from: r.from,
-      to: r.to,
-      type: r.type,
-      weight: r.weight,
-    }));
+    const vizData = relGraph.toVisualizationData({ agentMetadata });
+    return c.json(vizData);
+  });
 
-    return c.json({ nodes, edges });
+  /** Get relationship report for a uni */
+  app.get('/api/unis/:id/relationships/report', (c) => {
+    const id = c.req.param('id');
+    const uni = getUni(id, openclawDir);
+    if (!uni) return c.json({ error: 'Uni not found' }, 404);
+
+    const uniConfig = loadUniverseConfig(uni.specPath);
+    if (!uniConfig) return c.json({ error: 'Cannot load spec' }, 500);
+
+    const relGraph = createRelGraph(uniConfig.relationships);
+    const report = generateReport(relGraph);
+    return c.json(report);
+  });
+
+  /** Update relationships (write back to universe.yaml) */
+  app.put('/api/unis/:id/relationships', async (c) => {
+    const id = c.req.param('id');
+    const uni = getUni(id, openclawDir);
+    if (!uni) return c.json({ error: 'Uni not found' }, 404);
+
+    if (!existsSync(uni.specPath)) {
+      return c.json({ error: 'Spec file not found' }, 500);
+    }
+
+    try {
+      const body = await c.req.json<{
+        relationships: Array<{ from: string; to: string; type: string; weight?: number }>;
+      }>();
+
+      const raw = parseYaml(readFileSync(uni.specPath, 'utf-8'));
+      raw.relationships = body.relationships;
+      writeFileSync(uni.specPath, stringifyYaml(raw, { lineWidth: 120 }), 'utf-8');
+
+      return c.json({ ok: true, count: body.relationships.length });
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : 'Failed to update' }, 500);
+    }
   });
 
   /** Reset uni */
@@ -223,6 +263,16 @@ export function createDashboardRoutes(config: DashboardConfig): Hono {
     const workspace = getWorkspaceStatus(openclawDir, agentId);
 
     return c.html(renderAgentDetailPage({ uniId, agentId, config: uniConfig, workspace }));
+  });
+
+  /** Relationship graph page */
+  app.get('/uni/:id/relationships', (c) => {
+    const id = c.req.param('id');
+    const entry = getUni(id, openclawDir);
+    if (!entry) return c.notFound();
+
+    const uniConfig = loadUniverseConfig(entry.specPath);
+    return c.html(renderRelationshipGraphPage({ entry, config: uniConfig }));
   });
 
   /** Manage page */
