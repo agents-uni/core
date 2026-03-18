@@ -65,5 +65,8 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
+  },
+  "optionalDependencies": {
+    "@agents-uni/unis": "^0.1.0"
   }
 }

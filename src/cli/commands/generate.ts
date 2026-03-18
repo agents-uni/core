@@ -10,10 +10,16 @@ import chalk from 'chalk';
 import { resolve } from 'node:path';
 import { writeFileSync } from 'node:fs';
 import { stringify } from 'yaml';
-import {
-  RelationshipGenerator,
-} from '@agents-uni/rel';
-import type { AgentInfo } from '@agents-uni/rel';
+
+/** Agent info used for universe generation */
+interface AgentInfo {
+  id: string;
+  name: string;
+  role?: string;
+  rank?: number;
+  department?: string;
+  traits?: Record<string, number>;
+}
 
 export async function generateCommand(
   description: string,
@@ -36,12 +42,8 @@ export async function generateCommand(
     console.log(chalk.gray(`  Detected ${agents.length} agents from description`));
     console.log(chalk.gray(`  Universe type: ${universeType}\n`));
 
-    // Generate relationships
-    const generator = new RelationshipGenerator();
-    const result = await generator.generate(description, agents, {
-      type: universeType,
-      language: lang,
-    });
+    // Generate relationships using heuristic pairing
+    const seeds = generateRelationshipSeeds(agents, universeType);
 
     // Build universe config
     const config = {
@@ -61,10 +63,10 @@ export async function generateCommand(
         rank: a.rank,
         traits: a.traits,
       })),
-      relationships: result.seeds.map(s => ({
+      relationships: seeds.map((s: { from: string; to: string; type: string }) => ({
         from: s.from,
         to: s.to,
-        type: s.type ?? 'peer',
+        type: s.type,
         weight: 0.5,
       })),
       protocols: [],
@@ -82,20 +84,9 @@ export async function generateCommand(
     }
 
     // Print relationships
-    console.log(chalk.bold(`\n  Generated ${result.seeds.length} relationships:\n`));
-    for (const seed of result.seeds) {
-      console.log(`    ${chalk.gray(seed.from)} → ${chalk.gray(seed.to)}: ${chalk.yellow(seed.type ?? 'peer')}`);
-    }
-
-    // Print reasoning
-    if (result.reasoning.length > 0) {
-      console.log(chalk.gray(`\n  Reasoning:`));
-      for (const r of result.reasoning.slice(0, 10)) {
-        console.log(chalk.gray(`    - ${r}`));
-      }
-      if (result.reasoning.length > 10) {
-        console.log(chalk.gray(`    ... and ${result.reasoning.length - 10} more`));
-      }
+    console.log(chalk.bold(`\n  Generated ${seeds.length} relationships:\n`));
+    for (const seed of seeds) {
+      console.log(`    ${chalk.gray(seed.from)} → ${chalk.gray(seed.to)}: ${chalk.yellow(seed.type)}`);
     }
 
     // Write output
@@ -184,4 +175,31 @@ function slugify(text: string): string {
     .slice(0, 30)
     .replace(/-+$/, '')
     || 'generated-universe';
+}
+
+/** Generate relationship seeds using heuristic rank-based pairing */
+function generateRelationshipSeeds(
+  agents: AgentInfo[],
+  type: string
+): Array<{ from: string; to: string; type: string }> {
+  const seeds: Array<{ from: string; to: string; type: string }> = [];
+  const sorted = [...agents].sort((a, b) => (b.rank ?? 50) - (a.rank ?? 50));
+
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      const a = sorted[i];
+      const b = sorted[j];
+      const rankDiff = (a.rank ?? 50) - (b.rank ?? 50);
+
+      if (rankDiff > 20) {
+        seeds.push({ from: a.id, to: b.id, type: 'superior' });
+      } else if (type === 'competitive' && Math.abs(rankDiff) < 10) {
+        seeds.push({ from: a.id, to: b.id, type: 'rival' });
+      } else {
+        seeds.push({ from: a.id, to: b.id, type: 'peer' });
+      }
+    }
+  }
+
+  return seeds;
 }
