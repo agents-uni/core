@@ -1,9 +1,8 @@
 import chalk from 'chalk';
-import { writeFileSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { readFileSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync, existsSync, copyFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { dirname } from 'node:path';
+import { createRequire } from 'node:module';
 
 const TEMPLATES: Record<string, { label: string; file: string }> = {
   government: { label: '三省六部 (Hierarchical governance)', file: 'government.yaml' },
@@ -13,8 +12,14 @@ const TEMPLATES: Record<string, { label: string; file: string }> = {
   military: { label: '军事指挥 (Military command)', file: 'military.yaml' },
 };
 
-export async function initCommand(name?: string, opts?: { template?: string }): Promise<void> {
+export async function initCommand(name?: string, opts?: { template?: string; uni?: string }): Promise<void> {
   const projectName = name ?? 'my-universe';
+
+  // ─── --uni mode: initialize from @agents-uni/unis template ─────
+  if (opts?.uni) {
+    return initFromUni(projectName, opts.uni);
+  }
+
   const templateKey = opts?.template && opts.template in TEMPLATES ? opts.template : 'competitive';
 
   console.log(chalk.bold(`\n  Creating universe: ${projectName}\n`));
@@ -78,6 +83,92 @@ export async function initCommand(name?: string, opts?: { template?: string }): 
   console.log(chalk.white(`    cd ${projectName}`));
   console.log(chalk.white(`    npm install`));
   console.log(chalk.white(`    uni validate universe.yaml`));
+}
+
+async function initFromUni(projectName: string, uniId: string): Promise<void> {
+  console.log(chalk.bold(`\n  Creating universe from template: ${uniId}\n`));
+
+  // Locate @agents-uni/unis package directory
+  let unisDir: string;
+  try {
+    const require = createRequire(import.meta.url);
+    const unisPkgPath = require.resolve('@agents-uni/unis/package.json');
+    unisDir = dirname(unisPkgPath);
+  } catch {
+    console.error(chalk.red('  ✗ @agents-uni/unis is not installed.'));
+    console.error(chalk.gray('  Run: npm install @agents-uni/unis'));
+    process.exit(1);
+  }
+
+  // Read registry.json for metadata
+  const registryPath = join(unisDir, 'registry.json');
+  if (!existsSync(registryPath)) {
+    console.error(chalk.red('  ✗ registry.json not found in @agents-uni/unis.'));
+    process.exit(1);
+  }
+
+  const registry = JSON.parse(readFileSync(registryPath, 'utf-8'));
+  const uni = registry.unis.find((u: { id: string }) => u.id === uniId);
+  if (!uni) {
+    const available = registry.unis.map((u: { id: string }) => u.id).join(', ');
+    console.error(chalk.red(`  ✗ Universe "${uniId}" not found.`));
+    console.error(chalk.gray(`  Available: ${available}`));
+    process.exit(1);
+  }
+
+  console.log(chalk.gray(`  ${uni.name} (${uni.nameEn})`));
+  console.log(chalk.gray(`  Type: ${uni.type} | Agents: ${uni.agentCount} | Difficulty: ${uni.difficulty}\n`));
+
+  // Source directory: the uni's flat directory inside the package
+  const uniSrcDir = join(unisDir, uniId);
+  if (!existsSync(uniSrcDir)) {
+    console.error(chalk.red(`  ✗ Directory "${uniId}/" not found in @agents-uni/unis.`));
+    process.exit(1);
+  }
+
+  // Create project directory
+  const projectDir = join(process.cwd(), projectName);
+  mkdirSync(projectDir, { recursive: true });
+
+  // Copy files directly
+  const filesToCopy = ['universe.yaml', 'rel-demo.mjs', 'README.md'];
+  for (const file of filesToCopy) {
+    const src = join(uniSrcDir, file);
+    if (existsSync(src)) {
+      copyFileSync(src, join(projectDir, file));
+    }
+  }
+
+  // Write package.json
+  const packageJson = {
+    name: projectName,
+    version: '0.1.0',
+    description: `Agent universe: ${uni.name} (${uni.nameEn})`,
+    type: 'module',
+    scripts: {
+      validate: 'uni validate universe.yaml',
+      visualize: 'uni visualize universe.yaml',
+      deploy: 'uni deploy universe.yaml',
+      demo: 'node rel-demo.mjs',
+    },
+    dependencies: {
+      '@agents-uni/core': '^0.3.0',
+      '@agents-uni/rel': '^0.2.0',
+    },
+  };
+  writeFileSync(join(projectDir, 'package.json'), JSON.stringify(packageJson, null, 2));
+
+  console.log(chalk.green(`✓ Created universe project at ./${projectName}`));
+  console.log(chalk.gray('  Files:'));
+  console.log(chalk.gray('    universe.yaml   — Universe specification'));
+  console.log(chalk.gray('    rel-demo.mjs    — Relationship engine demo'));
+  console.log(chalk.gray('    README.md       — Design intent'));
+  console.log(chalk.gray('    package.json    — Project config'));
+  console.log(chalk.blue(`\n  Next steps:`));
+  console.log(chalk.white(`    cd ${projectName}`));
+  console.log(chalk.white(`    npm install`));
+  console.log(chalk.white(`    uni validate universe.yaml`));
+  console.log(chalk.white(`    node rel-demo.mjs`));
 }
 
 function generateMinimalTemplate(name: string): string {

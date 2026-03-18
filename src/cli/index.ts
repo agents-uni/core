@@ -11,6 +11,8 @@ import { visualizeCommand } from './commands/visualize.js';
 import { deployCommand } from './commands/deploy.js';
 import { initCommand } from './commands/init.js';
 import { inspectCommand } from './commands/inspect.js';
+import { generateCommand } from './commands/generate.js';
+import { enrichCommand } from './commands/enrich.js';
 import { listUnis, getUni, cleanupUni, resetUni } from '../bridge/uni-registry.js';
 import { startDashboard } from '../dashboard/server.js';
 
@@ -43,13 +45,32 @@ program
   .command('init [name]')
   .description('Initialize a new universe project')
   .option('-t, --template <template>', 'Template (government|corporation|competitive|flat|military)', 'competitive')
-  .action((name: string | undefined, opts: { template?: string }) => initCommand(name, opts));
+  .option('-u, --uni <id>', 'Initialize from a curated universe template (requires @agents-uni/unis)')
+  .action((name: string | undefined, opts: { template?: string; uni?: string }) => initCommand(name, opts));
 
 program
   .command('inspect <file>')
   .description('Inspect a universe spec')
   .option('--agent <id>', 'Show details for a specific agent')
   .action(inspectCommand);
+
+program
+  .command('generate <description>')
+  .description('Generate a universe from a natural language description')
+  .option('-t, --type <type>', 'Universe type (competitive|hierarchical|flat|hybrid)', 'competitive')
+  .option('-o, --output <file>', 'Output file path', 'universe.yaml')
+  .option('--lang <lang>', 'Language (zh|en)', 'zh')
+  .action((description: string, opts: { type?: string; output?: string; lang?: string }) =>
+    generateCommand(description, opts));
+
+program
+  .command('enrich <file>')
+  .description('Enrich a universe spec with relationships and event suggestions')
+  .option('--relationships', 'Auto-fill missing relationships')
+  .option('--events <count>', 'Suggest N dramatic events')
+  .option('-o, --output <file>', 'Output file path (defaults to input file)')
+  .action((file: string, opts: { relationships?: boolean; events?: string; output?: string }) =>
+    enrichCommand(file, opts));
 
 // ─── Dashboard ────────────────────────────────────
 
@@ -418,6 +439,116 @@ program
       console.log(chalk.green(`  ✓ Deployed ${result.agents.length} SOUL.md files to OpenClaw workspaces`));
     }
 
+    console.log();
+  });
+
+// ─── unis 模板库 ─────────────────────────────
+
+const unisCmd = program
+  .command('unis')
+  .description('Browse and search curated universe templates from @agents-uni/unis');
+
+/**
+ * Resolve the registry.json from @agents-uni/unis package.
+ * Returns parsed registry or exits with error.
+ */
+async function loadUnisRegistry(): Promise<{ version: number; unis: Array<{ id: string; name: string; nameEn: string; type: string; agentCount: number; difficulty: string; tags: string[]; language: string }> }> {
+  const { createRequire } = await import('node:module');
+  const { readFileSync } = await import('node:fs');
+  const { dirname, join } = await import('node:path');
+
+  let unisDir: string;
+  try {
+    const require = createRequire(import.meta.url);
+    const unisPkgPath = require.resolve('@agents-uni/unis/package.json');
+    unisDir = dirname(unisPkgPath);
+  } catch {
+    console.error(chalk.red('\n  @agents-uni/unis is not installed.'));
+    console.error(chalk.gray('  Run: npm install @agents-uni/unis\n'));
+    process.exit(1);
+  }
+
+  const registryPath = join(unisDir, 'registry.json');
+  return JSON.parse(readFileSync(registryPath, 'utf-8'));
+}
+
+unisCmd
+  .command('list')
+  .description('List all available curated universe templates')
+  .action(async () => {
+    const registry = await loadUnisRegistry();
+    const all = registry.unis;
+
+    console.log(chalk.bold('\n  🌌 Curated Universe Templates\n'));
+    console.log(chalk.gray('  ID              Name                     Type           Agents  Difficulty'));
+    console.log(chalk.gray('  ' + '─'.repeat(78)));
+
+    for (const u of all) {
+      const id = u.id.padEnd(16);
+      const name = u.name.padEnd(25);
+      const type = u.type.padEnd(14);
+      const agents = String(u.agentCount).padEnd(8);
+      const diff = u.difficulty;
+      console.log(`  ${chalk.cyan(id)} ${chalk.white(name)} ${chalk.gray(type)} ${chalk.white(agents)} ${chalk.gray(diff)}`);
+    }
+
+    console.log(chalk.gray('\n  Use `uni init <name> --uni <id>` to create a project from a template.\n'));
+  });
+
+unisCmd
+  .command('info <id>')
+  .description('Show detailed info about a curated universe template')
+  .action(async (id: string) => {
+    const registry = await loadUnisRegistry();
+    const uni = registry.unis.find((u: { id: string }) => u.id === id);
+
+    if (!uni) {
+      const available = registry.unis.map((u: { id: string }) => u.id).join(', ');
+      console.error(chalk.red(`\n  Universe "${id}" not found.`));
+      console.error(chalk.gray(`  Available: ${available}\n`));
+      process.exit(1);
+    }
+
+    console.log(chalk.bold(`\n  🌌 ${uni.name} (${uni.nameEn})\n`));
+    console.log(chalk.gray(`  ID:         ${uni.id}`));
+    console.log(chalk.gray(`  Type:       ${uni.type}`));
+    console.log(chalk.gray(`  Agents:     ${uni.agentCount}`));
+    console.log(chalk.gray(`  Difficulty: ${uni.difficulty}`));
+    console.log(chalk.gray(`  Language:   ${uni.language}`));
+    console.log(chalk.gray(`  Tags:       ${uni.tags.join(', ')}`));
+
+    console.log(chalk.blue(`\n  Quick start: uni init my-project --uni ${uni.id}\n`));
+  });
+
+unisCmd
+  .command('search')
+  .description('Search curated universe templates')
+  .option('--tag <tag>', 'Filter by tag')
+  .option('--type <type>', 'Filter by type (competitive|hierarchical|flat|hybrid)')
+  .option('--difficulty <level>', 'Filter by difficulty (beginner|intermediate|advanced)')
+  .action(async (opts: { tag?: string; type?: string; difficulty?: string }) => {
+    const registry = await loadUnisRegistry();
+
+    let results = registry.unis;
+    if (opts.tag) {
+      results = results.filter(u => u.tags.includes(opts.tag!));
+    }
+    if (opts.type) {
+      results = results.filter(u => u.type === opts.type);
+    }
+    if (opts.difficulty) {
+      results = results.filter(u => u.difficulty === opts.difficulty);
+    }
+
+    if (results.length === 0) {
+      console.log(chalk.gray('\n  No matching universes found.\n'));
+      return;
+    }
+
+    console.log(chalk.bold(`\n  Found ${results.length} universe(s):\n`));
+    for (const u of results) {
+      console.log(`  ${chalk.cyan(u.id.padEnd(16))} ${chalk.white(u.name.padEnd(20))} ${chalk.gray(u.type)} [${u.tags.join(', ')}]`);
+    }
     console.log();
   });
 
