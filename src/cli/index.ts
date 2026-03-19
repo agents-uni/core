@@ -13,6 +13,7 @@ import { initCommand } from './commands/init.js';
 import { inspectCommand } from './commands/inspect.js';
 import { generateCommand } from './commands/generate.js';
 import { enrichCommand } from './commands/enrich.js';
+import { resolveSpecFile } from './resolve-spec.js';
 import { listUnis, getUni, cleanupUni, resetUni } from '../bridge/uni-registry.js';
 import { startDashboard } from '../dashboard/server.js';
 
@@ -24,22 +25,23 @@ program
   .version('0.1.0');
 
 program
-  .command('validate <file>')
+  .command('validate [file]')
   .description('Validate a universe YAML spec against the schema')
-  .action(validateCommand);
+  .action((file?: string) => validateCommand(resolveSpecFile(file)));
 
 program
-  .command('visualize <file>')
+  .command('visualize [file]')
   .description('Render an ASCII relationship graph of the universe')
-  .action(visualizeCommand);
+  .action((file?: string) => visualizeCommand(resolveSpecFile(file)));
 
 program
-  .command('deploy <file>')
+  .command('deploy [file]')
   .description('Deploy universe spec to OpenClaw workspaces (generate SOUL.md files)')
   .option('--dry-run', 'Show what would be generated without writing files')
   .option('--dir <path>', 'OpenClaw base directory')
   .option('--lang <lang>', 'SOUL.md language (zh|en)', 'zh')
-  .action(deployCommand);
+  .action((file: string | undefined, opts: { dryRun?: boolean; dir?: string; lang?: string }) =>
+    deployCommand(resolveSpecFile(file), opts));
 
 program
   .command('init [name]')
@@ -49,10 +51,11 @@ program
   .action((name: string | undefined, opts: { template?: string; uni?: string }) => initCommand(name, opts));
 
 program
-  .command('inspect <file>')
+  .command('inspect [file]')
   .description('Inspect a universe spec')
   .option('--agent <id>', 'Show details for a specific agent')
-  .action(inspectCommand);
+  .action((file: string | undefined, opts: { agent?: string }) =>
+    inspectCommand(resolveSpecFile(file), opts));
 
 program
   .command('generate <description>')
@@ -64,13 +67,13 @@ program
     generateCommand(description, opts));
 
 program
-  .command('enrich <file>')
+  .command('enrich [file]')
   .description('Enrich a universe spec with relationships and event suggestions')
   .option('--relationships', 'Auto-fill missing relationships')
   .option('--events <count>', 'Suggest N dramatic events')
   .option('-o, --output <file>', 'Output file path (defaults to input file)')
-  .action((file: string, opts: { relationships?: boolean; events?: string; output?: string }) =>
-    enrichCommand(file, opts));
+  .action((file: string | undefined, opts: { relationships?: boolean; events?: string; output?: string }) =>
+    enrichCommand(resolveSpecFile(file), opts));
 
 // ─── Dashboard ────────────────────────────────────
 
