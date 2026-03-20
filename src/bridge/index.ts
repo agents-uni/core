@@ -16,6 +16,10 @@ export {
   type FileWorkspaceIOOptions,
 } from './workspace-io.js';
 export {
+  parseSubmissionContent,
+  type ParsedSubmission,
+} from './submission-parser.js';
+export {
   ReviewDispatcher,
   type ReviewConfig,
   type AgentReview,

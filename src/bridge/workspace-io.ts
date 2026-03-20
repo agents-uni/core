@@ -7,8 +7,9 @@
  * writes SUBMISSION.md. Simple, debuggable, zero infrastructure.
  *
  * File protocol:
- *   TASK.md       — written by dispatcher, read by agent
- *   SUBMISSION.md — written by agent, read by dispatcher
+ *   TASK.md            — written by dispatcher, read by agent
+ *   SUBMISSION.md      — written by agent, read by dispatcher
+ *   .SUBMISSION_DONE   — empty sentinel written by agent after SUBMISSION.md is complete
  */
 
 import { readFileSync, writeFileSync, unlinkSync, existsSync, mkdirSync } from 'node:fs';
@@ -34,12 +35,19 @@ export interface WorkspaceIO {
 
   /** Check if a submission exists without reading its content */
   hasSubmission(agentId: string): Promise<boolean>;
+
+  /** Check if the .SUBMISSION_DONE marker exists (agent finished writing) */
+  hasSubmissionDone(agentId: string): Promise<boolean>;
+
+  /** Remove the .SUBMISSION_DONE marker */
+  clearSubmissionDone(agentId: string): Promise<void>;
 }
 
 // ─── File Implementation ────────────────────────
 
 const TASK_FILENAME = 'TASK.md';
 const SUBMISSION_FILENAME = 'SUBMISSION.md';
+const SUBMISSION_DONE_FILENAME = '.SUBMISSION_DONE';
 
 export interface FileWorkspaceIOOptions {
   /** Base directory for OpenClaw workspaces (default: ~/.openclaw) */
@@ -77,7 +85,11 @@ export class FileWorkspaceIO implements WorkspaceIO {
   }
 
   async readSubmission(agentId: string): Promise<string | null> {
-    const filePath = join(this.workspacePath(agentId), SUBMISSION_FILENAME);
+    const dir = this.workspacePath(agentId);
+    const donePath = join(dir, SUBMISSION_DONE_FILENAME);
+    // Only read if the done marker exists — prevents reading half-written files
+    if (!existsSync(donePath)) return null;
+    const filePath = join(dir, SUBMISSION_FILENAME);
     if (!existsSync(filePath)) return null;
     try {
       return readFileSync(filePath, 'utf-8');
@@ -94,14 +106,31 @@ export class FileWorkspaceIO implements WorkspaceIO {
   }
 
   async clearSubmission(agentId: string): Promise<void> {
-    const filePath = join(this.workspacePath(agentId), SUBMISSION_FILENAME);
+    const dir = this.workspacePath(agentId);
+    const filePath = join(dir, SUBMISSION_FILENAME);
     if (existsSync(filePath)) {
       try { unlinkSync(filePath); } catch { /* ignore */ }
+    }
+    // Also clean up the done marker
+    const donePath = join(dir, SUBMISSION_DONE_FILENAME);
+    if (existsSync(donePath)) {
+      try { unlinkSync(donePath); } catch { /* ignore */ }
     }
   }
 
   async hasSubmission(agentId: string): Promise<boolean> {
     return existsSync(join(this.workspacePath(agentId), SUBMISSION_FILENAME));
+  }
+
+  async hasSubmissionDone(agentId: string): Promise<boolean> {
+    return existsSync(join(this.workspacePath(agentId), SUBMISSION_DONE_FILENAME));
+  }
+
+  async clearSubmissionDone(agentId: string): Promise<void> {
+    const filePath = join(this.workspacePath(agentId), SUBMISSION_DONE_FILENAME);
+    if (existsSync(filePath)) {
+      try { unlinkSync(filePath); } catch { /* ignore */ }
+    }
   }
 }
 
@@ -113,12 +142,15 @@ export class FileWorkspaceIO implements WorkspaceIO {
 export class MemoryWorkspaceIO implements WorkspaceIO {
   readonly tasks = new Map<string, string>();
   readonly submissions = new Map<string, string>();
+  readonly doneMarkers = new Set<string>();
 
   async writeTask(agentId: string, content: string): Promise<void> {
     this.tasks.set(agentId, content);
   }
 
   async readSubmission(agentId: string): Promise<string | null> {
+    // Respect done marker — match FileWorkspaceIO behavior
+    if (!this.doneMarkers.has(agentId)) return null;
     return this.submissions.get(agentId) ?? null;
   }
 
@@ -128,14 +160,29 @@ export class MemoryWorkspaceIO implements WorkspaceIO {
 
   async clearSubmission(agentId: string): Promise<void> {
     this.submissions.delete(agentId);
+    this.doneMarkers.delete(agentId);
   }
 
   async hasSubmission(agentId: string): Promise<boolean> {
     return this.submissions.has(agentId);
   }
 
-  /** Test helper: simulate an agent submitting work */
+  async hasSubmissionDone(agentId: string): Promise<boolean> {
+    return this.doneMarkers.has(agentId);
+  }
+
+  async clearSubmissionDone(agentId: string): Promise<void> {
+    this.doneMarkers.delete(agentId);
+  }
+
+  /** Test helper: simulate an agent submitting work (auto-sets done marker) */
   simulateSubmission(agentId: string, output: string): void {
+    this.submissions.set(agentId, output);
+    this.doneMarkers.add(agentId);
+  }
+
+  /** Test helper: simulate a half-written submission (no done marker) */
+  simulateSubmissionWithoutDone(agentId: string, output: string): void {
     this.submissions.set(agentId, output);
   }
 }

@@ -14,6 +14,7 @@
 
 import type { WorkspaceIO } from './workspace-io.js';
 import type { EventBus } from '../core/event-bus.js';
+import { parseSubmissionContent, type ParsedSubmission } from './submission-parser.js';
 
 // ─── Types ──────────────────────────────────────
 
@@ -46,6 +47,8 @@ export interface AgentSubmission {
   submittedAt: string;
   /** Time from dispatch to submission (ms) */
   duration: number;
+  /** NLP-extracted signals from the submission (optional for backward compat) */
+  parsed?: ParsedSubmission;
 }
 
 export interface DispatchResult {
@@ -101,6 +104,7 @@ function generateTaskMarkdown(task: DispatchTask, agentId: string): string {
     '## How to Submit',
     '',
     'Write your response to a file named `SUBMISSION.md` in this workspace directory.',
+    'After writing SUBMISSION.md, create an empty file named `.SUBMISSION_DONE` in the same directory to signal completion.',
     'The dispatcher will automatically collect your submission.',
     '',
     '---',
@@ -110,13 +114,7 @@ function generateTaskMarkdown(task: DispatchTask, agentId: string): string {
   return lines.join('\n');
 }
 
-// ─── Submission Parser ──────────────────────────
-
-function parseSubmission(raw: string): string {
-  // For now, the entire SUBMISSION.md content is the output.
-  // Future: support structured frontmatter (confidence, reasoning, etc.)
-  return raw.trim();
-}
+// ─── Submission Parser (delegates to submission-parser.ts) ──
 
 // ─── TaskDispatcher ─────────────────────────────
 
@@ -163,6 +161,7 @@ export class TaskDispatcher {
     for (const agentId of task.participants) {
       try {
         await this.io.clearSubmission(agentId);
+        await this.io.clearSubmissionDone(agentId);
         await this.io.clearTask(agentId);
       } catch {
         // Stale cleanup is best-effort; if it fails, continue
@@ -222,12 +221,13 @@ export class TaskDispatcher {
         try {
           const raw = await this.io.readSubmission(agentId);
           if (raw !== null) {
-            const output = parseSubmission(raw);
+            const parsed = parseSubmissionContent(raw, task.participants);
             submissions.push({
               agentId,
-              output,
+              output: parsed.content,
               submittedAt: new Date().toISOString(),
               duration: Date.now() - startTime,
+              parsed,
             });
             remaining.delete(agentId);
 
@@ -263,6 +263,7 @@ export class TaskDispatcher {
         try {
           await this.io.clearTask(agentId);
           await this.io.clearSubmission(agentId);
+          await this.io.clearSubmissionDone(agentId);
         } catch {
           // Cleanup is best-effort
         }

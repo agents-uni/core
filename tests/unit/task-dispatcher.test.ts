@@ -122,6 +122,28 @@ describe('TaskDispatcher', () => {
 
       expect(handler).toHaveBeenCalledTimes(1);
     });
+
+    it('should include parsed submission with NLP signals', async () => {
+      io.simulateSubmission('agent-a', 'I agree with @agent-b. See `./src/main.ts`.\n\n> confidence: 0.9');
+      const result = await dispatcher.collect(sampleTask, new Date().toISOString());
+
+      const subA = result.submissions.find(s => s.agentId === 'agent-a')!;
+      expect(subA.parsed).toBeDefined();
+      expect(subA.parsed!.confidence).toBe(0.9);
+      expect(subA.parsed!.stance).toBe('support');
+      expect(subA.parsed!.mentionedAgents).toContain('agent-b');
+      expect(subA.parsed!.referencedFiles).toContain('./src/main.ts');
+      // output should be the content (soft convention stripped)
+      expect(subA.output).not.toContain('> confidence');
+    });
+
+    it('should not read submission without done marker', async () => {
+      io.simulateSubmissionWithoutDone('agent-a', 'half-written');
+      const result = await dispatcher.collect(sampleTask, new Date().toISOString());
+
+      expect(result.submissions).toHaveLength(0);
+      expect(result.timedOut).toContain('agent-a');
+    });
   });
 
   describe('run (full cycle)', () => {
