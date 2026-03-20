@@ -1,6 +1,6 @@
 {
   "name": "@agents-uni/core",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Universal protocol layer for defining agent organizations and social relationships",
   "type": "module",
   "main": "dist/index.js",
