@@ -303,7 +303,7 @@ export function resetUni(id: string, openclawDir?: string): {
 
     // Clear TASK.md and SUBMISSION.md from workspace
     const workspacePath = join(dir, `workspace-${agentId}`);
-    for (const runtimeFile of ['TASK.md', 'SUBMISSION.md']) {
+    for (const runtimeFile of ['TASK.md', 'SUBMISSION.md', '.SUBMISSION_DONE']) {
       const filePath = join(workspacePath, runtimeFile);
       if (existsSync(filePath)) {
         rmSync(filePath, { force: true });

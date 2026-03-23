@@ -138,7 +138,7 @@ export class RelationshipGraph {
     if (rels.length === 0) return false;
 
     for (const rel of rels) {
-      if (!rel.mutable) continue;
+      if (rel.mutable === false) continue;
       rel.history.push({
         timestamp: new Date().toISOString(),
         previousWeight: rel.currentWeight,

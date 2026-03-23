@@ -6,7 +6,6 @@
  */
 
 import type { Lesson, OrganizationMemory } from '../types/index.js';
-import type { EventBus } from '../core/event-bus.js';
 
 let lessonCounter = 0;
 

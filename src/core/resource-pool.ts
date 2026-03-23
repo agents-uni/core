@@ -72,11 +72,14 @@ export class ResourcePool {
 
   /** Allocate resource to an agent (from system pool) */
   allocate(agentId: string, resourceName: string, amount: number, reason: string): boolean {
+    if (amount <= 0) return false;
+    const allocs = this.allocations.get(resourceName);
+    if (!allocs) return false;
     const remaining = this.getRemaining(resourceName);
     if (amount > remaining) return false;
 
     const current = this.getBalance(agentId, resourceName);
-    this.allocations.get(resourceName)!.set(agentId, current + amount);
+    allocs.set(agentId, current + amount);
 
     this.transferLog.push({
       from: 'system',
@@ -92,10 +95,11 @@ export class ResourcePool {
 
   /** Transfer resource between agents */
   transfer(fromId: string, toId: string, resourceName: string, amount: number, reason: string): boolean {
+    if (amount <= 0) return false;
+    const resAllocs = this.allocations.get(resourceName);
+    if (!resAllocs) return false;
     const fromBalance = this.getBalance(fromId, resourceName);
     if (amount > fromBalance) return false;
-
-    const resAllocs = this.allocations.get(resourceName)!;
     resAllocs.set(fromId, fromBalance - amount);
     resAllocs.set(toId, this.getBalance(toId, resourceName) + amount);
 
@@ -113,10 +117,13 @@ export class ResourcePool {
 
   /** Revoke resource from an agent (back to system pool) */
   revoke(agentId: string, resourceName: string, amount: number, reason: string): boolean {
+    if (amount <= 0) return false;
+    const allocs = this.allocations.get(resourceName);
+    if (!allocs) return false;
     const balance = this.getBalance(agentId, resourceName);
     if (amount > balance) return false;
 
-    this.allocations.get(resourceName)!.set(agentId, balance - amount);
+    allocs.set(agentId, balance - amount);
 
     this.transferLog.push({
       from: agentId,
@@ -136,7 +143,8 @@ export class ResourcePool {
     if (!def || !def.decayRate || def.decayRate <= 0) return [];
 
     const transfers: ResourceTransfer[] = [];
-    const allocs = this.allocations.get(resourceName)!;
+    const allocs = this.allocations.get(resourceName);
+    if (!allocs) return [];
 
     for (const [agentId, amount] of allocs) {
       const decayAmount = Math.floor(amount * def.decayRate);
