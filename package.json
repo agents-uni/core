@@ -46,7 +46,7 @@
     "type": "git",
     "url": "git+https://github.com/agents-uni/core.git"
   },
-  "homepage": "https://github.com/agents-uni/core#readme",
+  "homepage": "https://agents-uni.github.io",
   "bugs": {
     "url": "https://github.com/agents-uni/core/issues"
   },
