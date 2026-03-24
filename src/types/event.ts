@@ -28,6 +28,7 @@ export type OrganizationEventType =
   | 'task.failed'
   | 'review.approved'
   | 'review.rejected'
+  | 'review.dispatched'
   | 'protocol.stateChanged'
   | 'governance.changed'
   | 'evolution.cycleCompleted'

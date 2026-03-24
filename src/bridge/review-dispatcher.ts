@@ -13,6 +13,7 @@
 import type { WorkspaceIO } from './workspace-io.js';
 import type { EventBus } from '../core/event-bus.js';
 import type { DispatchTask, AgentSubmission } from './task-dispatcher.js';
+import type { EvolutionEngine } from '@agents-uni/rel';
 
 // ─── Types ──────────────────────────────────────
 
@@ -51,6 +52,8 @@ export interface ReviewDispatcherOptions {
   pollIntervalMs?: number;
   cleanup?: boolean;
   eventBus?: EventBus;
+  /** If provided, review events are automatically applied to the evolution engine */
+  evolutionEngine?: EvolutionEngine;
 }
 
 // ─── File Names ─────────────────────────────────
@@ -121,6 +124,7 @@ function generateReviewTaskMarkdown(
   lines.push('## How to Submit');
   lines.push('');
   lines.push('Write your review to `REVIEW.md` in this workspace directory.');
+  lines.push('After writing REVIEW.md, create an empty file named `.REVIEW_DONE` to signal completion.');
   lines.push('');
   lines.push('---');
   lines.push(`*Review dispatched at: ${new Date().toISOString()}*`);
@@ -181,15 +185,11 @@ function parseReviewSubmission(
 // ─── Extended WorkspaceIO Methods ───────────────
 
 async function writeReviewTask(io: WorkspaceIO, agentId: string, content: string): Promise<void> {
-  // Write using a custom filename pattern
-  // Since WorkspaceIO only supports TASK.md/SUBMISSION.md, we reuse writeTask
-  // but with REVIEW_TASK.md content
-  await io.writeTask(agentId, content);
+  await io.writeReviewTask(agentId, content);
 }
 
 async function readReview(io: WorkspaceIO, agentId: string): Promise<string | null> {
-  // Reuse readSubmission since REVIEW.md goes to the same workspace
-  return io.readSubmission(agentId);
+  return io.readReview(agentId);
 }
 
 // ─── ReviewDispatcher ───────────────────────────
@@ -214,12 +214,14 @@ export class ReviewDispatcher {
   private readonly pollIntervalMs: number;
   private readonly cleanup: boolean;
   private readonly eventBus?: EventBus;
+  private readonly evolutionEngine?: EvolutionEngine;
 
   constructor(io: WorkspaceIO, options: ReviewDispatcherOptions = {}) {
     this.io = io;
     this.pollIntervalMs = options.pollIntervalMs ?? 2000;
     this.cleanup = options.cleanup ?? true;
     this.eventBus = options.eventBus;
+    this.evolutionEngine = options.evolutionEngine;
   }
 
   /**
@@ -244,8 +246,8 @@ export class ReviewDispatcher {
     // Clear stale files
     for (const agentId of reviewerIds) {
       try {
-        await this.io.clearSubmission(agentId);
-        await this.io.clearTask(agentId);
+        await this.io.clearReview(agentId);
+        await this.io.clearReviewTask(agentId);
       } catch {
         // best-effort
       }
@@ -271,7 +273,7 @@ export class ReviewDispatcher {
     if (this.eventBus) {
       const dispatched = reviewerIds.filter(id => !dispatchFailed.includes(id));
       await this.eventBus.emitSimple(
-        'review.approved',
+        'review.dispatched',
         dispatched,
         `Review task for「${originalTask.title}」dispatched to ${dispatched.length} agents`,
         { taskId: originalTask.id, reviewers: dispatched }
@@ -314,8 +316,8 @@ export class ReviewDispatcher {
     if (this.cleanup) {
       for (const agentId of reviewerIds) {
         try {
-          await this.io.clearTask(agentId);
-          await this.io.clearSubmission(agentId);
+          await this.io.clearReviewTask(agentId);
+          await this.io.clearReview(agentId);
         } catch {
           // best-effort
         }
@@ -332,12 +334,31 @@ export class ReviewDispatcher {
       );
     }
 
-    return {
+    const result: ReviewResult = {
       taskId: originalTask.id,
       reviews,
       timedOut: [...remaining],
       dispatchFailed,
     };
+
+    // Auto-wire review events to evolution engine if configured
+    if (this.evolutionEngine) {
+      const events = this.inferRelationshipEvents(result);
+      for (const event of events) {
+        try {
+          this.evolutionEngine.processEvent(
+            event.from,
+            event.to,
+            event.type,
+            { description: event.description }
+          );
+        } catch {
+          // Evolution processing failure is non-fatal
+        }
+      }
+    }
+
+    return result;
   }
 
   /**

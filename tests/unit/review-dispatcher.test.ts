@@ -61,9 +61,9 @@ describe('ReviewDispatcher', () => {
 
       // Simulate reviews submitted
       setTimeout(() => {
-        io.simulateSubmission('agent-a', 'Agent: `agent-b`\nScore: 8\nGreat work!');
-        io.simulateSubmission('agent-b', 'Agent: `agent-a`\nScore: 7\nNice poem.');
-        io.simulateSubmission('agent-c', 'Agent: `agent-a`\nScore: 6\nDecent work.');
+        io.simulateReview('agent-a', 'Agent: `agent-b`\nScore: 8\nGreat work!');
+        io.simulateReview('agent-b', 'Agent: `agent-a`\nScore: 7\nNice poem.');
+        io.simulateReview('agent-c', 'Agent: `agent-a`\nScore: 6\nDecent work.');
       }, 50);
 
       const result = await promise;
@@ -74,9 +74,9 @@ describe('ReviewDispatcher', () => {
     });
 
     it('should clear stale files before dispatching', async () => {
-      // Pre-populate stale submissions
-      io.simulateSubmission('agent-a', 'stale review');
-      io.simulateSubmission('agent-b', 'stale review');
+      // Pre-populate stale reviews
+      io.simulateReview('agent-a', 'stale review');
+      io.simulateReview('agent-b', 'stale review');
 
       const promise = reviewer.dispatchReviews(
         sampleTask,
@@ -87,7 +87,7 @@ describe('ReviewDispatcher', () => {
       // After clearing, stale data should be gone
       // Simulate fresh reviews after a tick
       setTimeout(() => {
-        io.simulateSubmission('agent-a', 'Agent: `agent-b`\nScore: 8\nFresh review');
+        io.simulateReview('agent-a', 'Agent: `agent-b`\nScore: 8\nFresh review');
       }, 80);
 
       const result = await promise;
@@ -108,8 +108,8 @@ describe('ReviewDispatcher', () => {
 
       // Only agent-a and agent-b submit
       setTimeout(() => {
-        io.simulateSubmission('agent-a', 'Agent: `agent-b`\nScore: 9\nExcellent!');
-        io.simulateSubmission('agent-b', 'Agent: `agent-a`\nScore: 7\nGood.');
+        io.simulateReview('agent-a', 'Agent: `agent-b`\nScore: 9\nExcellent!');
+        io.simulateReview('agent-b', 'Agent: `agent-a`\nScore: 7\nGood.');
       }, 50);
 
       const result = await promise;
@@ -129,9 +129,9 @@ describe('ReviewDispatcher', () => {
       expect(result.timedOut).toHaveLength(3);
     });
 
-    it('should emit review.approved event on dispatch', async () => {
+    it('should emit review.dispatched event on dispatch', async () => {
       const handler = vi.fn();
-      eventBus.subscribe(['review.approved'], handler);
+      eventBus.subscribe(['review.dispatched'], handler);
 
       const promise = reviewer.dispatchReviews(
         sampleTask,
@@ -144,7 +144,7 @@ describe('ReviewDispatcher', () => {
       expect(handler).toHaveBeenCalledTimes(1);
       expect(handler).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: 'review.approved',
+          type: 'review.dispatched',
           actors: ['agent-a', 'agent-b', 'agent-c'],
         })
       );
@@ -170,9 +170,9 @@ describe('ReviewDispatcher', () => {
         { reviewTimeoutMs: 200 }
       );
 
-      // Check that TASK.md written for agent-a doesn't contain agent-a's own submission
+      // Check that REVIEW_TASK.md written for agent-a doesn't contain agent-a's own submission
       // by looking at what was written
-      const taskContent = io.tasks.get('agent-a');
+      const taskContent = io.reviewTasks.get('agent-a');
       if (taskContent) {
         // The review task should contain other agents' submissions but describe the review process
         expect(taskContent).toContain('Review Task');
@@ -191,7 +191,7 @@ describe('ReviewDispatcher', () => {
       );
 
       setTimeout(() => {
-        io.simulateSubmission('agent-a', 'Agent: `agent-b`\nScore: 8\nGreat work on the imagery.\n\nAgent: `agent-c`\nScore: 6\nCould be more creative.');
+        io.simulateReview('agent-a', 'Agent: `agent-b`\nScore: 8\nGreat work on the imagery.\n\nAgent: `agent-c`\nScore: 6\nCould be more creative.');
       }, 50);
 
       const result = await promise;
@@ -216,7 +216,7 @@ describe('ReviewDispatcher', () => {
       );
 
       setTimeout(() => {
-        io.simulateSubmission('agent-a', 'All poems were quite nice. I enjoyed reading them.');
+        io.simulateReview('agent-a', 'All poems were quite nice. I enjoyed reading them.');
       }, 50);
 
       const result = await promise;
@@ -455,9 +455,9 @@ describe('ReviewDispatcher', () => {
       );
 
       setTimeout(() => {
-        io.simulateSubmission('agent-a', 'Review content');
-        io.simulateSubmission('agent-b', 'Review content');
-        io.simulateSubmission('agent-c', 'Review content');
+        io.simulateReview('agent-a', 'Review content');
+        io.simulateReview('agent-b', 'Review content');
+        io.simulateReview('agent-c', 'Review content');
       }, 30);
 
       const result = await promise;
@@ -477,7 +477,7 @@ describe('ReviewDispatcher', () => {
       );
 
       // Check task content was written with custom prompt
-      const taskContent = io.tasks.get('agent-a');
+      const taskContent = io.reviewTasks.get('agent-a');
       if (taskContent) {
         expect(taskContent).toContain('creativity only');
       }
@@ -495,7 +495,7 @@ describe('ReviewDispatcher', () => {
         }
       );
 
-      const taskContent = io.tasks.get('agent-a');
+      const taskContent = io.reviewTasks.get('agent-a');
       if (taskContent) {
         // Should NOT contain scoring instructions
         expect(taskContent).not.toContain('Score: A score from 1-10');

@@ -11,6 +11,7 @@
  */
 
 import type { AgentDefinition, UniverseConfig, RulerDefinition } from '../types/index.js';
+import { createRelGraph, generateEnhancedRelationshipSection } from './rel-bridge.js';
 
 // Re-export RulerDefinition for backward compatibility
 export type { RulerDefinition } from '../types/index.js';
@@ -121,22 +122,28 @@ export function generateSoul(
     sections.push('');
   }
 
-  // Relationships section (agent-to-agent)
+  // Relationships section (agent-to-agent) — use enhanced multi-dimensional if available
   if (options.includeRelationships !== false) {
     const myRelationships = universe.relationships.filter(
       r => r.from === agent.id || r.to === agent.id
     );
 
     if (myRelationships.length > 0) {
-      sections.push(lang === 'zh' ? `## 关系网络` : `## Relationships`);
-      for (const rel of myRelationships) {
-        const other = rel.from === agent.id ? rel.to : rel.from;
-        const direction = rel.from === agent.id ? '→' : '←';
-        const otherAgent = universe.agents.find(a => a.id === other);
-        const otherName = otherAgent?.name ?? other;
-        sections.push(`- ${direction} ${otherName}: ${rel.type}`);
+      // Try enhanced multi-dimensional relationship section
+      try {
+        const relGraph = createRelGraph(universe.relationships);
+        const enhanced = generateEnhancedRelationshipSection(agent, universe, relGraph, lang);
+        if (enhanced) {
+          sections.push(enhanced);
+          sections.push('');
+        } else {
+          // Fallback to simple format
+          appendSimpleRelationships(sections, agent, universe, myRelationships, lang);
+        }
+      } catch {
+        // Fallback to simple format if @agents-uni/rel is unavailable
+        appendSimpleRelationships(sections, agent, universe, myRelationships, lang);
       }
-      sections.push('');
     }
   }
 
@@ -185,4 +192,23 @@ export function generateAllSouls(
     souls.set(agent.id, generateSoul(agent, universe, options));
   }
   return souls;
+}
+
+/** Fallback: simple relationship format when enhanced is unavailable */
+function appendSimpleRelationships(
+  sections: string[],
+  agent: AgentDefinition,
+  universe: UniverseConfig,
+  myRelationships: typeof universe.relationships,
+  lang: 'zh' | 'en'
+): void {
+  sections.push(lang === 'zh' ? `## 关系网络` : `## Relationships`);
+  for (const rel of myRelationships) {
+    const other = rel.from === agent.id ? rel.to : rel.from;
+    const direction = rel.from === agent.id ? '→' : '←';
+    const otherAgent = universe.agents.find(a => a.id === other);
+    const otherName = otherAgent?.name ?? other;
+    sections.push(`- ${direction} ${otherName}: ${rel.type}`);
+  }
+  sections.push('');
 }

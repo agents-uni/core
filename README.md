@@ -295,9 +295,13 @@ agents-uni-core 通过**文件协议**与 [OpenClaw](https://github.com/anthropi
 
 **2. 一键注册** — 部署时自动将 Agent 注册到 `openclaw.json`（含 `workspace` 和 `agentDir` 字段），无需手动配置
 
-**3. 任务调度** — 通过 `TASK.md` / `SUBMISSION.md` 文件协议与 Agent 交互
+**3. 任务调度** — 通过 `TASK.md` / `SUBMISSION.md` 文件协议与 Agent 交互，支持 `.SUBMISSION_DONE` 写完标记防止读到半截文件
 
-**4. 工作区管理** — 检查和同步 OpenClaw 工作区状态
+**4. 互评调度** — 通过 `REVIEW_TASK.md` / `REVIEW.md` 文件协议实现 Agent 间互评，自动推断关系事件并驱动关系演化
+
+**5. 提交解析** — NLP 后置提取提交内容中的置信度、立场、引用等信号（`ParsedSubmission`）
+
+**6. 工作区管理** — 检查和同步 OpenClaw 工作区状态
 
 ```
 Universe Spec (YAML)
@@ -307,9 +311,16 @@ SOUL.md × N → OpenClaw 工作区
   TaskDispatcher.run()
        |
        ├─ 写 TASK.md 到每个 Agent 工作区
-       ├─ Agent 读取 → 执行 → 写 SUBMISSION.md
-       ├─ 轮询收集 SUBMISSION.md
-       └─ 返回所有提交结果
+       ├─ Agent 读取 → 执行 → 写 SUBMISSION.md + .SUBMISSION_DONE
+       ├─ 轮询 .SUBMISSION_DONE → 读取 SUBMISSION.md → NLP 解析
+       └─ 返回所有提交结果（含 parsed 信号）
+       |
+  ReviewDispatcher.dispatchReviews()  (可选)
+       |
+       ├─ 写 REVIEW_TASK.md（含所有提交）到每个 Agent 工作区
+       ├─ Agent 读取 → 互评 → 写 REVIEW.md + .REVIEW_DONE
+       ├─ 轮询收集 REVIEW.md → 解析评分/反馈
+       └─ 自动推断关系事件 → 驱动 EvolutionEngine
 ```
 
 ```typescript
@@ -349,8 +360,24 @@ const result = await dispatcher.run({
   timeoutMs: 60000,
   participants: ['agent-a', 'agent-b'],
 });
-// result.submissions → 收集到的 Agent 提交
+// result.submissions → 收集到的 Agent 提交（含 parsed 信号）
+// result.submissions[0].parsed?.confidence → 置信度
+// result.submissions[0].parsed?.stance     → 立场 (support/oppose/neutral/mixed)
 // result.timedOut    → 超时未提交的 Agent
+
+// 3. （可选）发起互评，自动驱动关系演化
+import { ReviewDispatcher } from '@agents-uni/core';
+
+const reviewer = new ReviewDispatcher(new FileWorkspaceIO(), {
+  evolutionEngine, // 传入演化引擎，自动推断关系事件
+});
+const reviewResult = await reviewer.dispatchReviews(
+  task,
+  result.submissions,
+  { reviewTimeoutMs: 60000 }
+);
+// reviewResult.reviews → Agent 互评结果（含评分、反馈）
+// 关系事件已自动应用到 EvolutionEngine
 ```
 
 ## Dashboard 仪表盘
@@ -467,7 +494,7 @@ import {
   getUni,          // 获取单个 Universe 信息
   unregisterUni,   // 从注册中心移除
   cleanupUni,      // 删除工作区 + Agent 目录 + openclaw.json 条目 + 注册信息
-  resetUni,        // 清除 sessions、TASK.md、SUBMISSION.md，保留 SOUL.md
+  resetUni,        // 清除 sessions、TASK.md、SUBMISSION.md、REVIEW_TASK.md、REVIEW.md 等，保留 SOUL.md
   updateUni,       // 重新部署 SOUL.md，处理新增/移除的 Agent
 } from '@agents-uni/core';
 ```
@@ -479,7 +506,7 @@ import {
 | 注册 | `uni deploy`（自动） | 部署时自动注册到 uni-registry.json |
 | 列表 | `uni list` | 列出所有已注册的 Universe |
 | 状态 | `uni status` | 查看各 Uni 的 Agent 数量、部署时间等 |
-| 重置 | `uni reset <id>` | 清除 sessions 和 TASK.md / SUBMISSION.md，保留 SOUL.md |
+| 重置 | `uni reset <id>` | 清除 sessions 和运行时文件（TASK/SUBMISSION/REVIEW 系列），保留 SOUL.md |
 | 更新 | `updateUni()` | 重新部署 SOUL.md，处理新增/移除的 Agent |
 | 清理 | `uni cleanup <id>` | 删除工作区目录 + Agent 目录 + 从 openclaw.json 移除 + 从注册中心移除 |
 
@@ -680,9 +707,15 @@ import {
   updateUni,           // 重新部署，处理新增/移除的 Agent
 
   // 任务调度（文件协议）
-  TaskDispatcher,      // 下发 TASK.md → 收集 SUBMISSION.md
+  TaskDispatcher,      // 下发 TASK.md → 收集 SUBMISSION.md（含 NLP 解析）
   FileWorkspaceIO,     // 文件系统 I/O 后端
   MemoryWorkspaceIO,   // 内存 I/O 后端（用于测试）
+
+  // 🆕 互评调度
+  ReviewDispatcher,    // 下发 REVIEW_TASK.md → 收集 REVIEW.md → 自动驱动关系演化
+
+  // 🆕 提交解析
+  parseSubmissionContent, // NLP 后置提取置信度、立场、引用等信号
 
   // 🆕 Agency-agents 桥接
   agencyInit,              // 下载 agency-agents 仓库

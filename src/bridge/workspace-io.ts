@@ -10,6 +10,9 @@
  *   TASK.md            — written by dispatcher, read by agent
  *   SUBMISSION.md      — written by agent, read by dispatcher
  *   .SUBMISSION_DONE   — empty sentinel written by agent after SUBMISSION.md is complete
+ *   REVIEW_TASK.md     — written by review dispatcher, read by agent
+ *   REVIEW.md          — written by agent (review), read by review dispatcher
+ *   .REVIEW_DONE       — empty sentinel written by agent after REVIEW.md is complete
  */
 
 import { readFileSync, writeFileSync, unlinkSync, existsSync, mkdirSync } from 'node:fs';
@@ -41,6 +44,18 @@ export interface WorkspaceIO {
 
   /** Remove the .SUBMISSION_DONE marker */
   clearSubmissionDone(agentId: string): Promise<void>;
+
+  /** Write a review task file to an agent's workspace */
+  writeReviewTask(agentId: string, content: string): Promise<void>;
+
+  /** Read the review from an agent's workspace. Returns null if not yet submitted. */
+  readReview(agentId: string): Promise<string | null>;
+
+  /** Remove the review task file after collection */
+  clearReviewTask(agentId: string): Promise<void>;
+
+  /** Remove the review file after collection */
+  clearReview(agentId: string): Promise<void>;
 }
 
 // ─── File Implementation ────────────────────────
@@ -48,6 +63,9 @@ export interface WorkspaceIO {
 const TASK_FILENAME = 'TASK.md';
 const SUBMISSION_FILENAME = 'SUBMISSION.md';
 const SUBMISSION_DONE_FILENAME = '.SUBMISSION_DONE';
+const REVIEW_TASK_FILENAME = 'REVIEW_TASK.md';
+const REVIEW_FILENAME = 'REVIEW.md';
+const REVIEW_DONE_FILENAME = '.REVIEW_DONE';
 
 export interface FileWorkspaceIOOptions {
   /** Base directory for OpenClaw workspaces (default: ~/.openclaw) */
@@ -132,6 +150,42 @@ export class FileWorkspaceIO implements WorkspaceIO {
       try { unlinkSync(filePath); } catch { /* ignore */ }
     }
   }
+
+  async writeReviewTask(agentId: string, content: string): Promise<void> {
+    const dir = this.workspacePath(agentId);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, REVIEW_TASK_FILENAME), content, 'utf-8');
+  }
+
+  async readReview(agentId: string): Promise<string | null> {
+    const dir = this.workspacePath(agentId);
+    const donePath = join(dir, REVIEW_DONE_FILENAME);
+    if (!existsSync(donePath)) return null;
+    const filePath = join(dir, REVIEW_FILENAME);
+    if (!existsSync(filePath)) return null;
+    try {
+      return readFileSync(filePath, 'utf-8');
+    } catch {
+      return null;
+    }
+  }
+
+  async clearReviewTask(agentId: string): Promise<void> {
+    const filePath = join(this.workspacePath(agentId), REVIEW_TASK_FILENAME);
+    if (existsSync(filePath)) {
+      try { unlinkSync(filePath); } catch { /* ignore */ }
+    }
+  }
+
+  async clearReview(agentId: string): Promise<void> {
+    const dir = this.workspacePath(agentId);
+    for (const name of [REVIEW_FILENAME, REVIEW_DONE_FILENAME]) {
+      const filePath = join(dir, name);
+      if (existsSync(filePath)) {
+        try { unlinkSync(filePath); } catch { /* ignore */ }
+      }
+    }
+  }
 }
 
 // ─── In-Memory Implementation (for testing) ─────
@@ -143,6 +197,9 @@ export class MemoryWorkspaceIO implements WorkspaceIO {
   readonly tasks = new Map<string, string>();
   readonly submissions = new Map<string, string>();
   readonly doneMarkers = new Set<string>();
+  readonly reviewTasks = new Map<string, string>();
+  readonly reviews = new Map<string, string>();
+  readonly reviewDoneMarkers = new Set<string>();
 
   async writeTask(agentId: string, content: string): Promise<void> {
     this.tasks.set(agentId, content);
@@ -184,5 +241,29 @@ export class MemoryWorkspaceIO implements WorkspaceIO {
   /** Test helper: simulate a half-written submission (no done marker) */
   simulateSubmissionWithoutDone(agentId: string, output: string): void {
     this.submissions.set(agentId, output);
+  }
+
+  async writeReviewTask(agentId: string, content: string): Promise<void> {
+    this.reviewTasks.set(agentId, content);
+  }
+
+  async readReview(agentId: string): Promise<string | null> {
+    if (!this.reviewDoneMarkers.has(agentId)) return null;
+    return this.reviews.get(agentId) ?? null;
+  }
+
+  async clearReviewTask(agentId: string): Promise<void> {
+    this.reviewTasks.delete(agentId);
+  }
+
+  async clearReview(agentId: string): Promise<void> {
+    this.reviews.delete(agentId);
+    this.reviewDoneMarkers.delete(agentId);
+  }
+
+  /** Test helper: simulate an agent submitting a review (auto-sets done marker) */
+  simulateReview(agentId: string, content: string): void {
+    this.reviews.set(agentId, content);
+    this.reviewDoneMarkers.add(agentId);
   }
 }
