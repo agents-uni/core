@@ -157,8 +157,8 @@ export class TaskDispatcher {
   async dispatch(task: DispatchTask): Promise<string[]> {
     const failed: string[] = [];
 
-    // Clear any stale submissions first (best effort)
-    for (const agentId of task.participants) {
+    // Clear any stale submissions first (best effort, parallelized)
+    await Promise.all(task.participants.map(async (agentId) => {
       try {
         await this.io.clearSubmission(agentId);
         await this.io.clearSubmissionDone(agentId);
@@ -166,10 +166,10 @@ export class TaskDispatcher {
       } catch {
         // Stale cleanup is best-effort; if it fails, continue
       }
-    }
+    }));
 
-    // Write task to each workspace
-    for (const agentId of task.participants) {
+    // Write task to each workspace (parallelized)
+    await Promise.all(task.participants.map(async (agentId) => {
       try {
         const markdown = generateTaskMarkdown(task, agentId);
         await this.io.writeTask(agentId, markdown);
@@ -180,7 +180,7 @@ export class TaskDispatcher {
           err instanceof Error ? err.message : err
         );
       }
-    }
+    }));
 
     // Emit event
     if (this.eventBus) {
@@ -257,9 +257,9 @@ export class TaskDispatcher {
     const timedOut = [...remaining];
     const collectedAt = new Date().toISOString();
 
-    // Cleanup files (best effort)
+    // Cleanup files (best effort, parallelized)
     if (this.cleanup) {
-      for (const agentId of task.participants) {
+      await Promise.all(task.participants.map(async (agentId) => {
         try {
           await this.io.clearTask(agentId);
           await this.io.clearSubmission(agentId);
@@ -267,7 +267,7 @@ export class TaskDispatcher {
         } catch {
           // Cleanup is best-effort
         }
-      }
+      }));
     }
 
     // Emit collection complete event

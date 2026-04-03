@@ -40,9 +40,14 @@ export function renderLayout(title: string, bodyHtml: string, activeNav?: string
     .gradient-text { background: linear-gradient(135deg, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     .animate-in { animation: fadeIn 0.4s ease-out forwards; }
-    .animate-in-delay-1 { animation-delay: 0.1s; opacity: 0; }
-    .animate-in-delay-2 { animation-delay: 0.2s; opacity: 0; }
-    .animate-in-delay-3 { animation-delay: 0.3s; opacity: 0; }
+    .animate-in-delay-1 { animation-delay: 0.1s; opacity: 0; animation-fill-mode: forwards; }
+    .animate-in-delay-2 { animation-delay: 0.2s; opacity: 0; animation-fill-mode: forwards; }
+    .animate-in-delay-3 { animation-delay: 0.3s; opacity: 0; animation-fill-mode: forwards; }
+    .toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 100; animation: fadeIn 0.3s ease-out; }
+    .toast-success { background: rgba(34, 197, 94, 0.2); border: 1px solid rgba(34, 197, 94, 0.4); color: #86efac; }
+    .toast-error { background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { width: 24px; height: 24px; border: 2px solid #334155; border-top-color: #818cf8; border-radius: 50%; animation: spin 0.6s linear infinite; }
   </style>
 </head>
 <body class="bg-surface text-gray-200 min-h-screen">
@@ -1307,14 +1312,28 @@ export function renderUniDetailPage(data: UniDetailData): string {
     </div>
 
     <script>
+      function showToast(msg, type) {
+        const t = document.createElement('div');
+        t.className = 'toast toast-' + type;
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
+      }
       async function uniAction(action, id) {
         if (action === 'cleanup' && !confirm('确定要清理此 Uni？所有 workspace 和 agent 目录将被删除。')) return;
         if (action === 'reset' && !confirm('确定要重置此 Uni？运行时数据（sessions/TASK.md/SUBMISSION.md）将被清除。')) return;
-        const res = await fetch('/api/unis/' + encodeURIComponent(id) + '/' + action, { method: 'POST' });
-        const data = await res.json();
-        alert(JSON.stringify(data, null, 2));
-        if (action === 'cleanup') window.location.href = '/';
-        else window.location.reload();
+        try {
+          const res = await fetch('/api/unis/' + encodeURIComponent(id) + '/' + action, { method: 'POST' });
+          const data = await res.json();
+          if (data.ok || data.status === 'ok') {
+            showToast(action === 'reset' ? '重置成功' : '清理成功', 'success');
+            setTimeout(() => { if (action === 'cleanup') window.location.href = '/'; else window.location.reload(); }, 800);
+          } else {
+            showToast('操作失败: ' + (data.error || 'Unknown'), 'error');
+          }
+        } catch (err) {
+          showToast('网络错误: ' + err.message, 'error');
+        }
       }
     </script>
   `;
@@ -1517,13 +1536,28 @@ export function renderManagePage(unis: UniRegistryEntry[], healthStatus: {
     </div>
 
     <script>
+      function showToast(msg, type) {
+        const t = document.createElement('div');
+        t.className = 'toast toast-' + type;
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
+      }
       async function uniAction(action, id) {
         if (action === 'cleanup' && !confirm('确定要清理 ' + id + '？所有 workspace 和 agent 目录将被删除。')) return;
         if (action === 'reset' && !confirm('确定要重置 ' + id + '？运行时数据将被清除。')) return;
-        const res = await fetch('/api/unis/' + encodeURIComponent(id) + '/' + action, { method: 'POST' });
-        const data = await res.json();
-        alert(JSON.stringify(data, null, 2));
-        window.location.reload();
+        try {
+          const res = await fetch('/api/unis/' + encodeURIComponent(id) + '/' + action, { method: 'POST' });
+          const data = await res.json();
+          if (data.ok || data.status === 'ok') {
+            showToast((action === 'reset' ? '重置' : '清理') + ' ' + id + ' 成功', 'success');
+            setTimeout(() => window.location.reload(), 800);
+          } else {
+            showToast('操作失败: ' + (data.error || 'Unknown'), 'error');
+          }
+        } catch (err) {
+          showToast('网络错误: ' + err.message, 'error');
+        }
       }
     </script>
   `;
@@ -1568,7 +1602,13 @@ export function renderRelationshipGraphPage(data: RelationshipGraphData): string
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
       <!-- Graph Area (3 cols) -->
       <div class="lg:col-span-3">
-        <div class="bg-surface-light rounded-xl border border-gray-700/50 overflow-hidden" style="height:600px;">
+        <div class="bg-surface-light rounded-xl border border-gray-700/50 overflow-hidden" style="height:600px; position: relative;">
+          <div id="graphLoading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:10;">
+            <div style="text-align:center;">
+              <div class="spinner" style="margin:0 auto 12px;"></div>
+              <div class="text-gray-500 text-sm">Loading relationship graph...</div>
+            </div>
+          </div>
           <div id="relGraph" style="width:100%;height:100%;"></div>
         </div>
       </div>
@@ -1647,12 +1687,28 @@ export function renderRelationshipGraphPage(data: RelationshipGraphData): string
 
       const CLUSTER_COLORS = ['#818cf8', '#f472b6', '#34d399', '#fbbf24', '#fb923c', '#a78bfa', '#67e8f9', '#f87171'];
 
+      function showToast(msg, type) {
+        const t = document.createElement('div');
+        t.className = 'toast toast-' + type;
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
+      }
+
       async function init() {
-        const res = await fetch('/api/unis/' + encodeURIComponent(UNI_ID) + '/relationships');
-        vizData = await res.json();
-        renderGraph(vizData);
-        renderInfluence(vizData);
-        renderClusterLegend(vizData);
+        try {
+          const res = await fetch('/api/unis/' + encodeURIComponent(UNI_ID) + '/relationships');
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          vizData = await res.json();
+          renderGraph(vizData);
+          renderInfluence(vizData);
+          renderClusterLegend(vizData);
+        } catch (err) {
+          showToast('Failed to load relationships: ' + err.message, 'error');
+        } finally {
+          const el = document.getElementById('graphLoading');
+          if (el) el.style.display = 'none';
+        }
       }
 
       function renderGraph(data) {
@@ -1774,7 +1830,7 @@ export function renderRelationshipGraphPage(data: RelationshipGraphData): string
         const to = document.getElementById('editTo').value;
         const type = document.getElementById('editType').value;
         const weight = parseFloat(document.getElementById('editWeight').value) || 0.5;
-        if (from === to) { alert('From and To must be different'); return; }
+        if (from === to) { showToast('From and To must be different', 'error'); return; }
 
         const rels = await getLocalRelationships();
         rels.push({ from, to, type, weight });
@@ -1800,43 +1856,57 @@ export function renderRelationshipGraphPage(data: RelationshipGraphData): string
 
       async function saveRelationships() {
         const rels = await getLocalRelationships();
-        const res = await fetch('/api/unis/' + encodeURIComponent(UNI_ID) + '/relationships', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ relationships: rels }),
-        });
-        const data = await res.json();
-        if (data.ok) {
-          alert('Saved ' + data.count + ' relationships to YAML');
-          localRelationships = null;
-          await refreshGraph();
-        } else {
-          alert('Error: ' + (data.error || 'Unknown'));
+        try {
+          const res = await fetch('/api/unis/' + encodeURIComponent(UNI_ID) + '/relationships', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ relationships: rels }),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            showToast('Saved ' + data.count + ' relationships', 'success');
+            localRelationships = null;
+            await refreshGraph();
+          } else {
+            showToast('Save failed: ' + (data.error || 'Unknown'), 'error');
+          }
+        } catch (err) {
+          showToast('Network error: ' + err.message, 'error');
         }
       }
 
       async function refreshGraph() {
-        const res = await fetch('/api/unis/' + encodeURIComponent(UNI_ID) + '/relationships');
-        vizData = await res.json();
-        renderGraph(vizData);
-        renderInfluence(vizData);
-        renderClusterLegend(vizData);
+        try {
+          const res = await fetch('/api/unis/' + encodeURIComponent(UNI_ID) + '/relationships');
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          vizData = await res.json();
+          renderGraph(vizData);
+          renderInfluence(vizData);
+          renderClusterLegend(vizData);
+        } catch (err) {
+          showToast('Failed to refresh graph: ' + err.message, 'error');
+        }
       }
 
       async function loadReport() {
         const el = document.getElementById('reportContent');
-        el.innerHTML = '<span class="text-gray-500">Loading...</span>';
-        const res = await fetch('/api/unis/' + encodeURIComponent(UNI_ID) + '/relationships/report');
-        const report = await res.json();
-        el.innerHTML =
-          '<div class="text-white font-medium mb-2">' + esc(report.summary) + '</div>' +
-          (report.hotspots.length > 0
-            ? '<div class="space-y-2 mt-3">' + report.hotspots.map(h =>
-                '<div class="p-2 rounded border ' +
-                (h.severity > 0.5 ? 'border-red-500/50 bg-red-500/10' : 'border-yellow-500/50 bg-yellow-500/10') +
-                '"><div class="text-xs font-medium ' + (h.severity > 0.5 ? 'text-red-300' : 'text-yellow-300') + '">' + esc(h.type) + ' (severity: ' + h.severity.toFixed(2) + ')</div><div class="text-gray-300 text-xs mt-1">' + esc(h.description) + '</div></div>'
-              ).join('') + '</div>'
-            : '<div class="text-gray-500 mt-2">No hotspots detected</div>');
+        el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;"><div class="spinner"></div><span class="text-gray-500">Analyzing...</span></div>';
+        try {
+          const res = await fetch('/api/unis/' + encodeURIComponent(UNI_ID) + '/relationships/report');
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const report = await res.json();
+          el.innerHTML =
+            '<div class="text-white font-medium mb-2">' + esc(report.summary) + '</div>' +
+            (report.hotspots.length > 0
+              ? '<div class="space-y-2 mt-3">' + report.hotspots.map(h =>
+                  '<div class="p-2 rounded border ' +
+                  (h.severity > 0.5 ? 'border-red-500/50 bg-red-500/10' : 'border-yellow-500/50 bg-yellow-500/10') +
+                  '"><div class="text-xs font-medium ' + (h.severity > 0.5 ? 'text-red-300' : 'text-yellow-300') + '">' + esc(h.type) + ' (severity: ' + h.severity.toFixed(2) + ')</div><div class="text-gray-300 text-xs mt-1">' + esc(h.description) + '</div></div>'
+                ).join('') + '</div>'
+              : '<div class="text-gray-500 mt-2">No hotspots detected</div>');
+        } catch (err) {
+          el.innerHTML = '<span class="text-red-400">Failed to load report: ' + esc(err.message) + '</span>';
+        }
       }
 
       function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }

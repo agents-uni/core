@@ -52,10 +52,11 @@ export class EventBus {
       timestamp: new Date().toISOString(),
     };
 
-    // Store in log
+    // Store in log (efficient truncation: splice front instead of creating new array)
     this.eventLog.push(fullEvent);
     if (this.eventLog.length > this.maxRetention) {
-      this.eventLog = this.eventLog.slice(-this.maxRetention);
+      const excess = this.eventLog.length - this.maxRetention;
+      this.eventLog.splice(0, excess);
     }
 
     // Notify subscribers

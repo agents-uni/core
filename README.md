@@ -731,7 +731,8 @@ import {
 
 ```typescript
 import {
-  createDashboardServer,  // 创建 Dashboard Hono 服务器
+  startDashboard,         // 启动 Dashboard Hono 服务器
+  createDashboardRoutes,  // 创建 Dashboard 路由（Hono 实例）
 } from '@agents-uni/core';
 
 import type {
